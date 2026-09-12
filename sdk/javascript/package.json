@@ -1,0 +1,1 @@
+{"name":"@erc8415/sdk","version":"0.1.0","type":"module","main":"index.js","types":"index.d.ts","files":["index.js","index.d.ts","README.md"],"scripts":{"test":"node --test --experimental-test-coverage --test-coverage-lines=80"},"engines":{"node":">=22"}}

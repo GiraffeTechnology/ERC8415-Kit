@@ -16,7 +16,7 @@ jobs:
         run: |
           python3 -m venv .venv
           .venv/bin/pip install -r requirements.lock
-          .venv/bin/pip install --no-deps -e .
+          .venv/bin/pip install --no-deps -e . -e ./sdk/python
       - name: Build and audit contracts
         run: |
           export PATH=/home/dev/.local/bin:$PATH
@@ -27,6 +27,11 @@ jobs:
       - name: Lint and tests
         run: |
           .venv/bin/ruff check api engine adapters tests
-          .venv/bin/pytest
+          .venv/bin/pytest --cov=sdk/python/erc8415
+      - name: JavaScript SDK tests
+        run: |
+          export PATH=/home/dev/.local/bin:$PATH
+          cd sdk/javascript
+          npm test
       - name: Dependency audit
         run: .venv/bin/pip-audit -r requirements.lock
