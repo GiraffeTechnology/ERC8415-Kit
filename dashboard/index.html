@@ -14,6 +14,11 @@
 <table><thead><tr><th>Asset</th><th>Status</th><th>Holder</th><th>Version</th></tr></thead><tbody id="assets"></tbody></table>
 <p id="empty" hidden>No assets registered yet.</p></section>
 <section class="card"><h2 id="detail-title">Audit timeline</h2><ol id="timeline"><li>Select an asset.</li></ol></section></div>
+<section class="card" id="actions-panel" hidden><h2 id="action-title">Asset actions</h2>
+<p>Actions use the current asset version. Review the audit record after each change.</p>
+<label>New holder<input id="new-holder" maxlength="128"></label>
+<label>Signed proof (JSON)<textarea id="proof-input" rows="3" placeholder="Issuer, expiry and signature"></textarea></label>
+<div class="row" id="actions"></div></section>
 <section class="card" id="register-panel"><h2>Register an asset</h2><form id="register" class="row">
 <label>Asset identifier<input name="id" pattern="[A-Za-z0-9_-]+" required maxlength="64"></label>
 <label>Confirmed holder<input name="holder" required maxlength="128"></label><button>Register asset</button></form></section>

@@ -117,7 +117,7 @@ def test_unsupported_operation(registry):
 def test_storage_schema_and_configuration(registry):
     with registry.sessions() as session:
         assert set(inspect(session.bind).get_table_names()) == {
-            "assets", "asset_history", "permissions", "finality_records", "users", "login_sessions"
+            "assets", "asset_history", "permissions", "finality_records", "users", "login_sessions", "api_keys", "rate_buckets", "transaction_outbox"
         }
     with pytest.raises(ValueError):
         database("sqlite:///production.db")

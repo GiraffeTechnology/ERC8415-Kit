@@ -1,0 +1,5 @@
+KIT_ENV=production
+# Supply through an owner-managed secret file, never commit actual values.
+KIT_DATABASE_URL=mysql+pymysql://USER:PASSWORD@DEDICATED_MYSQL_HOST/kit_default
+KIT_TENANT_DATABASES={"institution_b":"mysql+pymysql://USER:PASSWORD@DEDICATED_MYSQL_HOST/kit_institution_b"}
+KIT_PROOF_KEYS={}

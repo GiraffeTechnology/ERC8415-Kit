@@ -1,12 +1,15 @@
-"""Same-origin dashboard and session routes."""
+"""Same-origin institutional interface with tenant-bound authentication."""
 from pathlib import Path
 
-from fastapi import Request, Response
-from fastapi.responses import FileResponse
+from fastapi import Query, Request, Response
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.exc import SQLAlchemyError
 
 from engine.auth import AuthService, authorize
 from engine.registry import RegistryError
+from engine.tenancy import tenant_registry
 
 ROOT = Path(__file__).resolve().parent.parent / "dashboard"
 
@@ -24,26 +27,43 @@ class RoleUpdate(BaseModel):
     role: str
 
 
-def attach_dashboard(app, secure_cookie=True):
-    from fastapi.responses import JSONResponse
+class KeyRequest(BaseModel):
+    role: str
+    lifetime: int = Field(default=86400, ge=60, le=7776000)
 
+
+def attach_dashboard(app, secure_cookie=True):
     @app.middleware("http")
     async def authenticate(request, call_next):
         path = request.url.path
-        if path not in {"/health", "/", "/dashboard.js", "/dashboard.css", "/auth/login"}:
-            try:
+        tenant = "_unauthenticated"
+        try:
+            if path == "/auth/login":
+                request.app.state.auth.rate_limit("login:" + request.client.host, limit=10)
+            if path not in {"/health", "/", "/dashboard.js", "/dashboard.css", "/auth/login"}:
                 auth = request.app.state.auth
-                identity = auth.identity(request.cookies.get("kit_session"))
+                bearer = request.headers.get("authorization", "")
+                identity = (auth.key_identity(bearer[7:]) if bearer.startswith("Bearer ")
+                            else auth.identity(request.cookies.get("kit_session")))
                 authorize(identity, request.method, path, request.headers.get("x-csrf-token"))
+                tenant = identity["tenant"]
                 request.state.identity = identity
-            except RegistryError as error:
-                return JSONResponse({"detail": error.message}, status_code=error.status)
-        response = await call_next(request)
+                request.state.registry = tenant_registry(request.app.state.registries, tenant)
+                auth.rate_limit("api:" + tenant + ":" + identity["username"])
+            response = await call_next(request)
+        except RegistryError as error:
+            response = JSONResponse({"detail": error.message}, status_code=error.status)
+            if error.status == 429:
+                response.headers["Retry-After"] = "60"
+        metrics = getattr(request.app.state, "metrics", {})
+        key = (tenant, response.status_code)
+        metrics[key] = metrics.get(key, 0) + 1
         response.headers["Content-Security-Policy"] = (
             "default-src 'self'; script-src 'self'; style-src 'self'; "
             "object-src 'none'; frame-ancestors 'none'; base-uri 'none'"
         )
         response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["Strict-Transport-Security"] = "max-age=31536000"
         response.headers["Cache-Control"] = "no-store"
         return response
 
@@ -77,22 +97,70 @@ def attach_dashboard(app, secure_cookie=True):
         return {"status": "signed out"}
 
     @app.get("/assets")
-    def assets(request: Request):
-        return request.app.state.registry.list_assets()
+    def assets(request: Request, limit: int = Query(100, ge=1, le=1000),
+               offset: int = Query(0, ge=0)):
+        return request.state.registry.list_assets(limit, offset)
 
     @app.get("/admin/users")
     def users(request: Request):
-        return request.app.state.auth.users()
+        return request.app.state.auth.users(request.state.identity["tenant"])
 
     @app.post("/admin/users", status_code=201)
     def create_user(body: NewUser, request: Request):
-        request.app.state.auth.create_user(body.username, body.password, body.role)
+        request.app.state.auth.create_user(
+            body.username, body.password, body.role, request.state.identity["tenant"]
+        )
         return {"username": body.username, "role": body.role}
 
     @app.post("/admin/users/{username}/role")
     def set_role(username: str, body: RoleUpdate, request: Request):
-        request.app.state.auth.set_role(username, body.role, request.state.identity["username"])
+        identity = request.state.identity
+        request.app.state.auth.set_role(username, body.role, identity["username"], identity["tenant"])
         return {"username": username, "role": body.role}
+
+    @app.post("/admin/keys", status_code=201)
+    def issue_key(body: KeyRequest, request: Request):
+        return request.app.state.auth.issue_key(request.state.identity, body.role, body.lifetime)
+
+    @app.get("/admin/keys")
+    def keys(request: Request):
+        return request.app.state.auth.keys(request.state.identity["tenant"])
+
+    @app.post("/admin/keys/{key_id}/revoke")
+    def revoke_key(key_id: str, request: Request):
+        request.app.state.auth.revoke_key(key_id, request.state.identity["tenant"])
+        return {"status": "revoked"}
+
+    @app.get("/admin/metrics", response_class=PlainTextResponse)
+    def metrics(request: Request):
+        tenant = request.state.identity["tenant"]
+        values = request.app.state.metrics
+        return "\n".join(
+            f'kit_http_requests_total{{status="{status}"}} {count}'
+            for (item, status), count in sorted(values.items()) if item == tenant
+        ) + "\n"
+
+    @app.get("/audit/export")
+    def export(request: Request, limit: int = Query(100, ge=1, le=1000),
+               offset: int = Query(0, ge=0)):
+        registry = request.state.registry
+        assets = registry.list_assets(limit, offset)
+        return JSONResponse(
+            {"institution": request.state.identity["tenant"], "offset": offset,
+             "next_offset": offset + len(assets) if len(assets) == limit else None,
+             "records": [{"asset": asset, "history": registry.history(asset["id"])}
+                         for asset in assets]},
+            headers={"Content-Disposition": 'attachment; filename="audit.json"'},
+        )
+
+    @app.get("/ready")
+    def ready(request: Request):
+        try:
+            with request.state.registry.sessions() as session:
+                session.execute(text("SELECT 1"))
+        except SQLAlchemyError:
+            return JSONResponse({"status": "unavailable"}, status_code=503)
+        return {"status": "ready"}
 
 
 def auth_for(registry):

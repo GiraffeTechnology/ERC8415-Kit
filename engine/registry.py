@@ -1,5 +1,4 @@
 """Single command boundary: validate -> state -> adapter -> transactional audit."""
-from threading import RLock
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -17,16 +16,21 @@ class RegistryError(Exception):
 def snapshot(asset):
     return {
         "id": asset.id, "holder": asset.holder, "state": asset.state,
+        "execution_status": asset.execution_status,
         "frozen": asset.frozen, "version": asset.version, "metadata": asset.metadata_,
     }
 
 
 class Registry:
-    def __init__(self, sessions, adapter, verifier=None):
+    def __init__(self, sessions, adapter, verifier=None, tenant="default"):
         self.sessions = sessions
         self.adapter = adapter
-        self.lock = RLock()
+        self.lock = sessions.kit_lock
         self.verifier = verifier
+        self.tenant = tenant
+
+    def _snapshot(self, asset):
+        return {**snapshot(asset), "institution": self.tenant}
 
     def _asset(self, session, asset_id):
         asset = session.get(Asset, asset_id)
@@ -34,13 +38,13 @@ class Registry:
             raise RegistryError(404, "Asset not found")
         return asset
 
-    def list_assets(self):
+    def list_assets(self, limit=100, offset=0):
         with self.lock, self.sessions() as session:
-            return [snapshot(asset) for asset in session.scalars(select(Asset).order_by(Asset.id))]
+            return [self._snapshot(asset) for asset in session.scalars(select(Asset).order_by(Asset.id).limit(limit).offset(offset))]
 
     def get(self, asset_id):
         with self.lock, self.sessions() as session:
-            return snapshot(self._asset(session, asset_id))
+            return self._snapshot(self._asset(session, asset_id))
 
     def history(self, asset_id):
         with self.lock, self.sessions() as session:
@@ -55,9 +59,17 @@ class Registry:
             ]
 
     def _record(self, session, operation, asset, proof=None):
+        asset.execution_status = {"outbox": "QUEUED", "local-evm": "LOCAL_EVM"}.get(
+            getattr(self.adapter, "mode", "mock"), "SIMULATED"
+        )
         session.flush()
-        result = snapshot(asset)
+        result = self._snapshot(asset)
         receipt = self.adapter.execute(operation, result)
+        if getattr(self.adapter, "mode", "mock") == "outbox":
+            from engine.operations import Outbox
+
+            session.add(Outbox(id=receipt["transaction_id"], asset_id=asset.id,
+                               version=asset.version, operation=operation, payload=result))
         session.add(Finality(asset_id=asset.id, version=asset.version,
                              transaction_id=receipt["transaction_id"],
                              status=receipt["finality"], evidence=receipt))
@@ -81,6 +93,8 @@ class Registry:
 
         with self.lock, self.sessions.begin() as session:
             asset = self._asset(session, asset_id)
+            if asset.execution_status not in {"SIMULATED", "LOCAL_EVM", "CONFIRMED"}:
+                raise RegistryError(409, "Prior chain operation requires confirmation or reconciliation")
             if asset.version != expected_version:
                 raise RegistryError(409, "Stale asset version")
             if asset.state in {"SETTLED", "REVOKED"}:
@@ -92,7 +106,7 @@ class Registry:
                 if self.verifier is None:
                     raise RegistryError(503, "Proof verifier is not configured")
                 validate_transition(asset.state, "VERIFIED")
-                verified_proof = self.verifier.verify(snapshot(asset), **proof)
+                verified_proof = self.verifier.verify(self._snapshot(asset), **proof)
                 asset.state = "VERIFIED"
             elif operation == "transfer":
                 validate_transition(asset.state, "TRANSFERRED")

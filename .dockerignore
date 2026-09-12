@@ -19,3 +19,4 @@
 **/*.key
 **/*.db
 **/__pycache__/
+!dashboard/*.py

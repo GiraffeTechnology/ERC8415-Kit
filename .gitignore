@@ -11,3 +11,5 @@ node_modules/
 contracts/out/
 contracts/cache/
 work/
+build/
+dist/

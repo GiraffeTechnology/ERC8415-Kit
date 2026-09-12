@@ -1,8 +1,9 @@
 """Persistence definitions; deployed services use a dedicated external MySQL database."""
 from datetime import UTC, datetime
+from threading import RLock
 from typing import ClassVar
 
-from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, create_engine
+from sqlalchemy import JSON, Boolean, DateTime, ForeignKey, Integer, String, create_engine, inspect
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, sessionmaker
 from sqlalchemy.pool import StaticPool
 
@@ -20,6 +21,7 @@ class Asset(Base):
     id: Mapped[str] = mapped_column(String(64), primary_key=True)
     holder: Mapped[str] = mapped_column(String(128))
     state: Mapped[str] = mapped_column(String(24), default="REGISTERED")
+    execution_status: Mapped[str] = mapped_column(String(24), default="SIMULATED")
     frozen: Mapped[bool] = mapped_column(Boolean, default=False)
     version: Mapped[int] = mapped_column(Integer, default=1)
     metadata_: Mapped[dict] = mapped_column("metadata", JSON, default=dict)
@@ -62,4 +64,12 @@ def database(url):
     else:
         raise ValueError("Use dedicated MySQL or isolated in-memory test storage")
     Base.metadata.create_all(engine)
-    return sessionmaker(engine, expire_on_commit=False)
+    inspector = inspect(engine)
+    for table in Base.metadata.sorted_tables:
+        actual = {column["name"] for column in inspector.get_columns(table.name)}
+        if not set(table.columns.keys()).issubset(actual):
+            engine.dispose()
+            raise ValueError("Schema migration required before startup")
+    sessions = sessionmaker(engine, expire_on_commit=False)
+    sessions.kit_lock = RLock()
+    return sessions
