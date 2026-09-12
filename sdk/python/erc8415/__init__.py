@@ -62,7 +62,12 @@ class Client:
         return self.request("GET", "/asset/" + quote(asset_id, safe="") + "/history")
 
     def assets(self):
-        return self.request("GET", "/assets")
+        assets = []
+        while True:
+            page = self.request("GET", f"/assets?limit=100&offset={len(assets)}")
+            assets.extend(page)
+            if len(page) < 100:
+                return assets
 
     def command(self, path, asset_id, version, **extra):
         return self.request("POST", path, {**extra, "asset_id": asset_id, "expected_version": version})

@@ -1,7 +1,7 @@
 # ERC-8415 Kit final engineering delivery
 
 Date: 2026-09-13
-Status: Stage 0–6 engineering implementation and local acceptance complete; production acceptance pending.
+Status: Stage 0–6 implemented and locally verified; review closure and production acceptance pending.
 Authority: CODEX-AUTONOMOUS-DEVELOPMENT-TASK.md v1.0, AGENTS.md and docs/PRD.md.
 No direct push to main. CI and merges are owned by Artfi总控.
 
@@ -25,7 +25,7 @@ ERC-8415 draft authority was read at GiraffeTechnology/ERCs commit c9bf1a59c3e65
 Each stage has a docs/STAGE-N-DELIVERY-REPORT.md and a focused stacked PR. Review/merge in order. Earlier reports record stage-local evidence; the final result below supersedes their aggregate test counts. Docker-context and provider-binding review fixes were propagated across the stack.
 
 ## Tests and build evidence
-On abcdyi: 96 Python tests passed, 95.24% combined API/engine/adapters coverage. Minimum required: 80%. JavaScript SDK tests passed with 100% line, branch and function coverage. Ruff passed. Two upstream TestClient deprecation warnings do not fail the suite.
+On abcdyi: 99 Python tests passed, 95.24% combined API/engine/adapters coverage. Minimum required: 80%. JavaScript SDK tests passed with 100% line, branch and function coverage. Ruff passed. Two upstream TestClient deprecation warnings do not fail the suite.
 Required API integration: register -> trusted proof -> activate -> settlement -> audit.
 Blockchain integration: deploy in-process EVM contracts -> execute transactions -> assert events. Additional tests mutate proof fields, distinguish owner from confirmed holder, and verify gap/settlement behavior.
 Final live integration: both SDKs -> local HTTP API -> EVM; browser -> verify -> activate -> transfer -> settle -> audit. Screenshots include desktop and mobile. No frontend wallet or direct chain call.

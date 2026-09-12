@@ -33,7 +33,14 @@ export class Client {
   state(id){return this.request("GET","/asset/"+encodeURIComponent(id)+"/state");}
   holder(id){return this.request("GET","/asset/"+encodeURIComponent(id)+"/holder");}
   history(id){return this.request("GET","/asset/"+encodeURIComponent(id)+"/history");}
-  assets(){return this.request("GET","/assets");}
+  async assets(){
+    const assets=[];
+    for(;;){
+      const page=await this.request("GET","/assets?limit=100&offset="+assets.length);
+      assets.push(...page);
+      if(page.length<100)return assets;
+    }
+  }
   update(id,version,state){return this.command("/state/update",id,version,{state});}
   verify(id,version,proof){return this.command("/proof/verify",id,version,proof);}
   transfer(id,version,holder){return this.command("/transfer",id,version,{holder});}

@@ -22,7 +22,12 @@ async function timeline(id) {
   }));
 }
 async function refresh() {
-  const rows = await api("/assets");
+  const rows = [];
+  for (;;) {
+    const page = await api("/assets?limit=100&offset="+rows.length);
+    rows.push(...page);
+    if (page.length < 100) break;
+  }
   el("count").textContent = "("+rows.length+")";
   el("empty").hidden = rows.length !== 0;
   el("assets").replaceChildren(...rows.map(asset => {

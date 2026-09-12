@@ -14,8 +14,8 @@ Date: 2026-09-13. All build/package and test execution: abcdyi.
 - Deployment, migration and first administrator instructions in PRODUCTION.md.
 
 ## Validation
-- 96 Python tests passed; API/engine/adapters coverage 95.24% (minimum 80%).
-- JavaScript SDK: two suites passed; line/branch/function coverage 100%.
+- 99 Python tests passed; API/engine/adapters coverage 95.24% (minimum 80%).
+- JavaScript SDK: four tests passed; line/branch/function coverage 100%.
 - Browser: Python and JavaScript SDKs called the live local API and EVM; browser completed signed proof verification, activation, transfer, settlement and audit. Desktop/mobile layout and logout passed.
 - Actual Docker context image excludes all eight synthetic secret/state canaries.
 - Ruff passed. Service wheel built on abcdyi. Two upstream TestClient deprecation warnings remain.

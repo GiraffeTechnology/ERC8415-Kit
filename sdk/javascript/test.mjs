@@ -4,7 +4,7 @@ import {Client,APIError} from "./index.js";
 test("SDK operations and authentication",async()=>{
  const calls=[];
  const c=new Client("https://example.test/",{fetchImpl:async(url,options)=>{
-  calls.push({url,...options});return new Response('{"csrf":"token"}',{headers:{"set-cookie":"kit_session=abc; Secure"}});
+  calls.push({url,...options});return new Response(url.includes("/assets?") ? '[]' : '{"csrf":"token"}',{headers:{"set-cookie":"kit_session=abc; Secure"}});
  }});
  await c.login("user","password");await c.register("a","h");await c.state("a/b");
  await c.holder("a");await c.history("a");await c.assets();await c.update("a",2,"ACTIVE");
@@ -29,4 +29,23 @@ test("failure handling and secure URLs",async()=>{
  await assert.rejects(v.assets(),/API request failed/);
  assert.throws(()=>new Client("http://external.test"),/HTTPS/);
  assert.throws(()=>new Client("https://user:pass@example.test"),/HTTPS/);
+});
+
+test("assets consumes every page without changing its array interface",async()=>{
+ const records=Array.from({length:205},(_,i)=>({id:"asset-"+i,institution:"trusted"}));
+ const offsets=[];
+ const c=new Client("https://example.test",{fetchImpl:async(url)=>{
+  const query=new URL(url).searchParams;
+  const offset=Number(query.get("offset"));offsets.push(offset);
+  assert.equal(query.get("limit"),"100");
+  return Response.json(records.slice(offset,offset+100));
+ }});
+ assert.deepEqual(await c.assets(),records);
+ assert.deepEqual(offsets,[0,100,200]);
+});
+test("assets propagates a later-page error instead of returning a truncated list",async()=>{
+ const c=new Client("https://example.test",{fetchImpl:async(url)=>
+   url.endsWith("offset=0") ? Response.json(Array.from({length:100},(_,i)=>({id:i}))) :
+   Response.json({detail:"Rate limit exceeded"},{status:429})});
+ await assert.rejects(c.assets(),e=>e.status===429);
 });

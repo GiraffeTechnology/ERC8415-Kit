@@ -156,3 +156,76 @@ def test_same_schema_with_different_credentials_rejected(monkeypatch):
                        '{"b":"mysql+pymysql://b:q@db.invalid:3306/schema"}')
     with pytest.raises(ValueError, match="distinct database"):
         tenant_urls()
+
+
+@pytest.mark.parametrize("role,csrf", [("VIEWER", True), ("ADMIN", False)])
+def test_authenticated_rejections_are_limited_and_attributed(registry, role, csrf):
+    other = Registry(database("sqlite+pysqlite:///:memory:"), MockAdapter())
+    auth = AuthService(registry.sessions)
+    auth.create_user("rejected", "test-password-only", role, tenant="b")
+    auth.create_user("observer", "test-password-only", "ADMIN", tenant="b")
+    app = create_app(registry, {"b": other})
+    try:
+        with (TestClient(app, base_url="https://testserver") as rejected,
+              TestClient(app, base_url="https://testserver") as observer):
+            token = rejected.post("/auth/login", json={
+                "username": "rejected", "password": "test-password-only"
+            }).json()["csrf"]
+            if csrf:
+                rejected.headers["X-CSRF-Token"] = token
+            # Leave two requests in the authenticated user's real rate bucket.
+            for _ in range(118):
+                auth.rate_limit("api:b:rejected")
+            for _ in range(2):
+                response = rejected.post("/asset/register", json={"id": "x", "holder": "h"},
+                                         headers={"X-Tenant": "default"})
+                assert response.status_code == 403
+            response = rejected.post("/asset/register", json={"id": "x", "holder": "h"})
+            assert response.status_code == 429
+            assert response.headers["Retry-After"] == "60"
+            assert app.state.metrics[("b", 403)] == 2
+            assert app.state.metrics[("b", 429)] == 1
+            assert ("default", 403) not in app.state.metrics
+            assert ("_unauthenticated", 403) not in app.state.metrics
+            observer.post("/auth/login", json={
+                "username": "observer", "password": "test-password-only"
+            })
+            assert 'status="403"} 2' in observer.get("/admin/metrics").text
+            assert not other.list_assets()
+            invalid = observer.get("/assets", headers={
+                "Authorization": "Bearer invalid", "X-Tenant": "b"
+            })
+            assert invalid.status_code == 401
+            assert app.state.metrics[("_unauthenticated", 401)] == 1
+            assert ("b", 401) not in app.state.metrics
+    finally:
+        other.sessions.kw["bind"].dispose()
+
+
+def test_sdk_pagination_over_100_assets_is_tenant_bound(registry):
+    from erc8415 import Client
+
+    from engine.database import Asset
+
+    other = Registry(database("sqlite+pysqlite:///:memory:"), MockAdapter())
+    auth = AuthService(registry.sessions)
+    auth.create_user("default-reader", "test-password-only", "VIEWER")
+    auth.create_user("other-reader", "test-password-only", "VIEWER", tenant="b")
+    for tenant_registry in (registry, other):
+        with tenant_registry.sessions.begin() as session:
+            session.add_all([Asset(id=f"asset-{i:03}", holder="holder") for i in range(205)])
+    try:
+        with TestClient(create_app(registry, {"b": other}), base_url="https://testserver") as http:
+            for username, tenant in [("default-reader", "default"), ("other-reader", "b")]:
+                sdk = Client("https://testserver", client=http)
+                sdk.login(username, "test-password-only")
+                records = sdk.assets()
+                assert len(records) == 205
+                assert len({item["id"] for item in records}) == 205
+                assert {item["institution"] for item in records} == {tenant}
+                assert records[-1]["id"] == "asset-204"
+                assert len(http.get("/assets").json()) == 100
+                assert http.get("/assets?limit=100&offset=205").json() == []
+                sdk.logout()
+    finally:
+        other.sessions.kw["bind"].dispose()

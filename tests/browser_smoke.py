@@ -13,9 +13,10 @@ from playwright.sync_api import sync_playwright
 from web3 import EthereumTesterProvider, Web3
 
 from adapters.ethereum import LocalEVMAdapter
+from adapters.mock import MockAdapter
 from api.main import create_app
 from engine.auth import AuthService
-from engine.database import database
+from engine.database import Asset, database
 from engine.registry import Registry
 from engine.verification import ProofVerifier, proof_message
 from sdk.python.erc8415 import Client
@@ -32,7 +33,10 @@ registry = Registry(sessions, LocalEVMAdapter(chain, contract, chain.eth.account
 AuthService(sessions).create_user("demo-admin", "browser-test-only-2026", "ADMIN")
 registry.register("INSTITUTION-BOND-001", "Northbridge Custody", {})
 registry.register("REGISTRY-NOTE-002", "Institutional Trust", {})
-app = create_app(registry)
+other = Registry(database("sqlite+pysqlite:///:memory:"), MockAdapter())
+with other.sessions.begin() as session:
+    session.add(Asset(id="FOREIGN-INSTITUTION", holder="Other"))
+app = create_app(registry, {"b": other})
 server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=18415, log_level="error"))
 thread = threading.Thread(target=server.run, daemon=True)
 thread.start()
@@ -93,6 +97,23 @@ try:
         page.set_viewport_size({"width": 390, "height": 844})
         assert page.evaluate("document.documentElement.scrollWidth <= window.innerWidth")
         page.screenshot(path="work/dashboard-mobile.png", full_page=True)
+        with sessions.begin() as session:
+            session.add_all([Asset(id=f"PAGED-{i:03}", holder="Pagination Test") for i in range(105)])
+        page.get_by_role("button", name="Refresh", exact=True).click()
+        page.get_by_role("button", name="PAGED-104", exact=True).wait_for()
+        assert page.locator("#assets tr").count() == 110
+        assert "FOREIGN-INSTITUTION" not in page.locator("#assets").inner_text()
+        sdk = Client("http://127.0.0.1:18415", api_key=key)
+        assert len(sdk.assets()) == 110
+        assert all(row["institution"] == "default" for row in sdk.assets())
+        sdk.close()
+        subprocess.run(["node", "--input-type=module", "-e",
+                        ('import {Client} from "./sdk/javascript/index.js";'
+                         'const c=new Client("http://127.0.0.1:18415",{apiKey:process.env.KIT_TEST_KEY});'
+                         'const rows=await c.assets();'
+                         'if(rows.length!==110||rows.some(r=>r.institution!=="default"))'
+                         'throw Error("Pagination or institution isolation");')],
+                       env={**os.environ, "KIT_TEST_KEY": key}, check=True)
         page.get_by_role("button", name="Sign out", exact=True).click()
         page.get_by_role("button", name="Sign in", exact=True).wait_for()
         assert not errors, errors
@@ -102,3 +123,4 @@ finally:
     server.should_exit = True
     thread.join(5)
     sessions.kw["bind"].dispose()
+    other.sessions.kw["bind"].dispose()

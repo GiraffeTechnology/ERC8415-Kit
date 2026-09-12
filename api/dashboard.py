@@ -45,11 +45,11 @@ def attach_dashboard(app, secure_cookie=True):
                 bearer = request.headers.get("authorization", "")
                 identity = (auth.key_identity(bearer[7:]) if bearer.startswith("Bearer ")
                             else auth.identity(request.cookies.get("kit_session")))
-                authorize(identity, request.method, path, request.headers.get("x-csrf-token"))
                 tenant = identity["tenant"]
                 request.state.identity = identity
                 request.state.registry = tenant_registry(request.app.state.registries, tenant)
                 auth.rate_limit("api:" + tenant + ":" + identity["username"])
+                authorize(identity, request.method, path, request.headers.get("x-csrf-token"))
             response = await call_next(request)
         except RegistryError as error:
             response = JSONResponse({"detail": error.message}, status_code=error.status)
