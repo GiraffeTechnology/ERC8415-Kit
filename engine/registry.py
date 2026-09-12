@@ -5,7 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm.exc import StaleDataError
 
-from engine.database import Asset, History
+from engine.database import Asset, Finality, History
 
 
 class RegistryError(Exception):
@@ -22,10 +22,11 @@ def snapshot(asset):
 
 
 class Registry:
-    def __init__(self, sessions, adapter):
+    def __init__(self, sessions, adapter, verifier=None):
         self.sessions = sessions
         self.adapter = adapter
         self.lock = RLock()
+        self.verifier = verifier
 
     def _asset(self, session, asset_id):
         asset = session.get(Asset, asset_id)
@@ -49,12 +50,15 @@ class Registry:
                 for row in rows
             ]
 
-    def _record(self, session, operation, asset):
+    def _record(self, session, operation, asset, proof=None):
         session.flush()
         result = snapshot(asset)
         receipt = self.adapter.execute(operation, result)
+        session.add(Finality(asset_id=asset.id, version=asset.version,
+                             transaction_id=receipt["transaction_id"],
+                             status=receipt["finality"], evidence=receipt))
         session.add(History(asset_id=asset.id, operation=operation, version=asset.version,
-                            record={"asset": result, "receipt": receipt}))
+                            record={"asset": result, "receipt": receipt, "proof": proof}))
         return result
 
     def register(self, asset_id, holder, metadata):
@@ -68,7 +72,9 @@ class Registry:
             except IntegrityError as error:
                 raise RegistryError(409, "Asset already registered") from error
 
-    def command(self, operation, asset_id, expected_version, state=None):
+    def command(self, operation, asset_id, expected_version, state=None, proof=None, holder=None):
+        from engine.verification import validate_transition
+
         with self.lock, self.sessions.begin() as session:
             asset = self._asset(session, asset_id)
             if asset.version != expected_version:
@@ -77,21 +83,36 @@ class Registry:
                 raise RegistryError(409, "Terminal asset cannot change")
             if asset.frozen and operation != "revoke":
                 raise RegistryError(409, "Asset is frozen")
-            if operation == "update":
-                if state not in {"REGISTERED", "VERIFIED", "ACTIVE", "TRANSFERRED"}:
+            verified_proof = None
+            if operation == "verify":
+                if self.verifier is None:
+                    raise RegistryError(503, "Proof verifier is not configured")
+                validate_transition(asset.state, "VERIFIED")
+                verified_proof = self.verifier.verify(snapshot(asset), **proof)
+                asset.state = "VERIFIED"
+            elif operation == "transfer":
+                validate_transition(asset.state, "TRANSFERRED")
+                if not holder or holder == asset.holder:
+                    raise RegistryError(422, "Transfer requires a different holder")
+                asset.holder = holder
+                asset.state = "TRANSFERRED"
+            elif operation == "update":
+                if state not in {"ACTIVE"}:
                     raise RegistryError(422, "Unsupported state")
                 if state == asset.state:
                     raise RegistryError(409, "State is unchanged")
+                validate_transition(asset.state, state)
                 asset.state = state
             elif operation == "freeze":
                 asset.frozen = True
             elif operation == "revoke":
                 asset.state = "REVOKED"
             elif operation == "settlement":
+                validate_transition(asset.state, "SETTLED")
                 asset.state = "SETTLED"
             else:
                 raise RegistryError(422, "Unsupported operation")
             try:
-                return self._record(session, operation, asset)
+                return self._record(session, operation, asset, verified_proof)
             except StaleDataError as error:
                 raise RegistryError(409, "Concurrent asset update") from error

@@ -44,6 +44,16 @@ class Permission(Base):
     asset_id: Mapped[str | None] = mapped_column(ForeignKey("assets.id"), nullable=True)
 
 
+class Finality(Base):
+    __tablename__ = "finality_records"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    asset_id: Mapped[str] = mapped_column(ForeignKey("assets.id"), index=True)
+    version: Mapped[int] = mapped_column(Integer)
+    transaction_id: Mapped[str] = mapped_column(String(128))
+    status: Mapped[str] = mapped_column(String(24))
+    evidence: Mapped[dict] = mapped_column(JSON)
+
+
 def database(url):
     if url == "sqlite+pysqlite:///:memory:":
         engine = create_engine(url, connect_args={"check_same_thread": False}, poolclass=StaticPool)

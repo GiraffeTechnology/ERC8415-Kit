@@ -1,4 +1,5 @@
 """API clients enter the registry engine; no direct adapter or blockchain calls."""
+import json
 import os
 from contextlib import asynccontextmanager
 
@@ -9,6 +10,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from adapters.mock import MockAdapter
 from engine.database import database
 from engine.registry import Registry, RegistryError
+from engine.verification import ProofVerifier
 
 
 class RegisterRequest(BaseModel):
@@ -28,12 +30,25 @@ class UpdateRequest(CommandRequest):
     state: str
 
 
+class VerifyRequest(CommandRequest):
+    issuer: str = Field(min_length=1, max_length=128)
+    expires_at: int
+    signature: str = Field(min_length=1, max_length=128)
+
+
+class TransferRequest(CommandRequest):
+    holder: str = Field(min_length=1, max_length=128)
+
+
 def create_app(registry=None):
     @asynccontextmanager
     async def lifespan(application):
         if registry is None:
             url = os.environ.get("KIT_DATABASE_URL", "sqlite+pysqlite:///:memory:")
-            application.state.registry = Registry(database(url), MockAdapter())
+            application.state.registry = Registry(
+                database(url), MockAdapter(),
+                ProofVerifier(json.loads(os.environ.get("KIT_PROOF_KEYS", "{}"))),
+            )
         try:
             yield
         finally:
@@ -87,6 +102,20 @@ def create_app(registry=None):
     def settlement(body: CommandRequest, request: Request):
         return request.app.state.registry.command(
             "settlement", body.asset_id, body.expected_version
+        )
+
+
+    @application.post("/proof/verify")
+    def verify(body: VerifyRequest, request: Request):
+        return request.app.state.registry.command(
+            "verify", body.asset_id, body.expected_version,
+            proof={"issuer": body.issuer, "expires_at": body.expires_at, "signature": body.signature},
+        )
+
+    @application.post("/transfer")
+    def transfer(body: TransferRequest, request: Request):
+        return request.app.state.registry.command(
+            "transfer", body.asset_id, body.expected_version, holder=body.holder
         )
 
     return application
