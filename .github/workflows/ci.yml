@@ -1,17 +1,27 @@
 name: Stage validation
 on:
-  pull_request:
   workflow_dispatch:
+    inputs:
+      reviewed_sha:
+        description: Exact commit reviewed and authorized by the operator
+        required: true
+        type: string
 permissions:
   contents: read
 jobs:
   validate:
-    runs-on: [self-hosted, linux, abcdyi, erc8415-kit]
+    runs-on: [self-hosted, linux, abcdyi, erc8415-kit-reviewed]
     timeout-minutes: 15
+    env:
+      REVIEWED_SHA: ${{ inputs.reviewed_sha }}
     steps:
+      - name: Validate reviewed commit
+        shell: bash
+        run: '[[ "$REVIEWED_SHA" =~ ^[0-9a-f]{40}$ ]]'
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
+          ref: ${{ inputs.reviewed_sha }}
       - name: Isolated development environment
         run: |
           python3 -m venv .venv
