@@ -17,6 +17,13 @@ jobs:
           python3 -m venv .venv
           .venv/bin/pip install -r requirements.lock
           .venv/bin/pip install --no-deps -e .
+      - name: Build and audit contracts
+        run: |
+          export PATH=/home/dev/.local/bin:$PATH
+          cd contracts
+          npm ci --ignore-scripts
+          npm audit
+          npm run build
       - name: Lint and tests
         run: |
           .venv/bin/ruff check api engine adapters tests
