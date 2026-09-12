@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict, Field
 
 from adapters.mock import MockAdapter
+from api.dashboard import attach_dashboard, auth_for
 from engine.database import database
 from engine.registry import Registry, RegistryError
 from engine.verification import ProofVerifier
@@ -49,6 +50,7 @@ def create_app(registry=None):
                 database(url), MockAdapter(),
                 ProofVerifier(json.loads(os.environ.get("KIT_PROOF_KEYS", "{}"))),
             )
+        application.state.auth = auth_for(application.state.registry)
         try:
             yield
         finally:
@@ -118,6 +120,7 @@ def create_app(registry=None):
             "transfer", body.asset_id, body.expected_version, holder=body.holder
         )
 
+    attach_dashboard(application)
     return application
 
 

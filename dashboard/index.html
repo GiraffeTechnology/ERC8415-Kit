@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Institutional Asset Registry</title><link rel="stylesheet" href="/dashboard.css"></head>
+<body><header><span class="brand">NIK</span><div><strong>Institutional Asset Registry</strong><p>Register · Verify · Audit</p></div>
+<div class="account"><span id="identity"></span><button id="logout" hidden>Sign out</button></div></header>
+<main><p id="notice" role="status" aria-live="polite"></p>
+<section id="login-panel" class="card narrow"><p class="eyebrow">INSTITUTION ACCESS</p><h1>Your assets. A clear record.</h1>
+<p>Sign in to manage your institution’s asset lifecycle and review its history.</p>
+<form id="login"><label>Username<input name="username" autocomplete="username" required></label>
+<label>Password<input name="password" type="password" autocomplete="current-password" required></label>
+<button>Sign in</button></form></section>
+<div id="workspace" hidden><div class="heading"><div><p class="eyebrow">REGISTRY OVERVIEW</p><h1>Asset register</h1></div><button id="refresh">Refresh</button></div>
+<div class="grid"><section class="card"><h2>Assets <span id="count"></span></h2><p class="muted">Select an asset to review its record.</p>
+<table><thead><tr><th>Asset</th><th>Status</th><th>Holder</th><th>Version</th></tr></thead><tbody id="assets"></tbody></table>
+<p id="empty" hidden>No assets registered yet.</p></section>
+<section class="card"><h2 id="detail-title">Audit timeline</h2><ol id="timeline"><li>Select an asset.</li></ol></section></div>
+<section class="card" id="register-panel"><h2>Register an asset</h2><form id="register" class="row">
+<label>Asset identifier<input name="id" pattern="[A-Za-z0-9_-]+" required maxlength="64"></label>
+<label>Confirmed holder<input name="holder" required maxlength="128"></label><button>Register asset</button></form></section>
+<section class="card" id="permissions" hidden><h2>Permission management</h2><p>Roles are enforced for every API operation. Role changes end existing sessions.</p>
+<ul id="users"></ul><form id="create-user" class="row">
+<label>Username<input name="username" required maxlength="128"></label>
+<label>Initial password<input name="password" type="password" minlength="12" maxlength="128" required autocomplete="new-password"></label>
+<label>Role<select name="role"><option>VIEWER</option><option>AUDITOR</option><option>VERIFIER</option><option>CUSTODIAN</option><option>ADMIN</option></select></label>
+<button>Add user</button></form></section></div></main>
+<footer>Institutional workflow status is separate from blockchain projection finality.</footer>
+<script src="/dashboard.js"></script></body></html>

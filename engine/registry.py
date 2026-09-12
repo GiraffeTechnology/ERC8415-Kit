@@ -34,6 +34,10 @@ class Registry:
             raise RegistryError(404, "Asset not found")
         return asset
 
+    def list_assets(self):
+        with self.lock, self.sessions() as session:
+            return [snapshot(asset) for asset in session.scalars(select(Asset).order_by(Asset.id))]
+
     def get(self, asset_id):
         with self.lock, self.sessions() as session:
             return snapshot(self._asset(session, asset_id))

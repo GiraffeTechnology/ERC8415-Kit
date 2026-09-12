@@ -8,6 +8,7 @@ from sqlalchemy import inspect
 
 from adapters.mock import MockAdapter
 from api.main import create_app
+from engine.auth import AuthService
 from engine.database import database
 from engine.registry import Registry, RegistryError
 from engine.verification import ProofVerifier, proof_message
@@ -27,7 +28,10 @@ def registry():
 
 @pytest.fixture
 def client(registry):
-    with TestClient(create_app(registry)) as client:
+    AuthService(registry.sessions).create_user("admin", "test-password-only", "ADMIN")
+    with TestClient(create_app(registry), base_url="https://testserver") as client:
+        login = client.post("/auth/login", json={"username": "admin", "password": "test-password-only"})
+        client.headers["X-CSRF-Token"] = login.json()["csrf"]
         yield client
 
 
@@ -113,7 +117,7 @@ def test_unsupported_operation(registry):
 def test_storage_schema_and_configuration(registry):
     with registry.sessions() as session:
         assert set(inspect(session.bind).get_table_names()) == {
-            "assets", "asset_history", "permissions", "finality_records"
+            "assets", "asset_history", "permissions", "finality_records", "users", "login_sessions"
         }
     with pytest.raises(ValueError):
         database("sqlite:///production.db")
@@ -121,4 +125,4 @@ def test_storage_schema_and_configuration(registry):
 
 def test_default_lifespan():
     with TestClient(create_app()) as client:
-        assert register(client).status_code == 201
+        assert register(client).status_code == 401
