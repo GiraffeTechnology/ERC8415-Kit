@@ -1,0 +1,25 @@
+name: Stage validation
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: [self-hosted, linux, abcdyi, erc8415-kit]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Isolated development environment
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -r requirements.lock
+          .venv/bin/pip install --no-deps -e .
+      - name: Lint and tests
+        run: |
+          .venv/bin/ruff check api engine adapters tests
+          .venv/bin/pytest
+      - name: Dependency audit
+        run: .venv/bin/pip-audit -r requirements.lock
