@@ -19,14 +19,29 @@ class EthereumAdapter:
     mode = "ethereum"
 
     def __init__(self, web3, contract, sender, chain_id, confirmations=1):
+        if contract.w3 is not web3:
+            raise ValueError("Contract must be bound to the monitored Web3 instance")
         if web3.eth.chain_id != chain_id or confirmations < 1:
             raise ValueError("Invalid chain or confirmation policy")
         self.web3 = web3
         self.contract = contract
         self.sender = sender
         self.confirmations = confirmations
+        self._provider = web3.provider
+        self._chain_id = chain_id
+        self._contract = contract
+        self._address = contract.address
+
+    def _validate_binding(self):
+        if (self.contract is not self._contract or self.contract.w3 is not self.web3
+                or self.web3.provider is not self._provider
+                or self.contract.address != self._address):
+            raise ValueError("Adapter provider or contract binding changed")
+        if self.web3.eth.chain_id != self._chain_id:
+            raise ValueError("Adapter chain identity changed")
 
     def submit(self, operation, asset):
+        self._validate_binding()
         key = Web3.keccak(text=asset["id"])
         holder = Web3.keccak(text=asset["holder"])
         functions = self.contract.functions
@@ -43,9 +58,13 @@ class EthereumAdapter:
             call = functions.settleAsset(key, version)
         else:
             raise ValueError("Unsupported adapter operation")
+        self._validate_binding()
+        if call.w3 is not self.web3 or call.address != self._address:
+            raise ValueError("Transaction function provider binding changed")
         return call.transact({"from": self.sender}).to_0x_hex()
 
     def monitor(self, transaction_id):
+        self._validate_binding()
         try:
             receipt = self.web3.eth.get_transaction_receipt(transaction_id)
         except TransactionNotFound:
