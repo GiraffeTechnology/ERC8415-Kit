@@ -1,157 +1,236 @@
-# ERC-8415 Native Infrastructure Kit (NIK)
-# Stage Delivery PRD v2.0
+# ERC-8415 Native Settlement Kit (NIK)
+# Stage Delivery PRD v2.1
 
 ## Product Definition
 
-ERC-8415 NIK is an institutional temporal proof, projection and finality infrastructure layer.
+ERC-8415 Native Settlement Kit is an application and infrastructure kit for building wallets and applications that manage asynchronous real-world asset settlement.
 
 Positioning:
 
-Stripe API + AWS SDK for ERC-8415 Native Assets.
+**Stripe API + AWS SDK for ERC-8415 Native Settlement Applications**
+
+The Kit enables applications to separate:
+
+- fast on-chain execution;
+- slow off-chain registry confirmation;
+- deterministic settlement completion.
 
 ---
 
-# Core Difference
+# Product Principle
 
-This system is NOT a current-state asset registry.
+ERC-8415 is not only a projection standard.
 
-The core questions are:
-
-- Who is holder as of time t?
-- Is that answer final as of time t?
-- What evidence admitted that projection?
-
----
-
-# Core Interfaces
-
-Required semantics:
-
-```solidity
-holderAsOf(uint256 tokenId, uint64 instant)
-    returns (address holder, bool provisional);
-
-entryAsOf(uint256 tokenId, uint64 instant);
-
-isFinalAsOf(uint256 tokenId, uint64 instant)
-    returns (bool);
-```
-
----
-
-# Finality Model
-
-Finality is derived from append-only temporal history.
-
-For t >= firstEntry.effectiveAt:
+It enables an asynchronous settlement model:
 
 ```text
-isFinalAsOf(t) == true
-iff
-there exists a strictly later admitted entry
+Fast Execution Layer
+        |
+        v
+ERC-8415 Projection Layer
+        |
+        v
+Slow Institutional Verification Layer
 ```
 
-Therefore:
-
-- later same-holder entry may finalize previous interval;
-- holder change is not required;
-- blockchain confirmation is not finality;
-- proof verification is not finality;
-- cancellation is not finality;
-- gap closure is not finality.
+The Kit provides the infrastructure between applications, wallets and ERC-8415 projections.
 
 ---
 
-# Projection Kernel
-
-Must enforce:
-
-- append-only history
-- consecutive versions
-- strictly increasing effectiveAt
-- commitment linkage
-- temporal queries
-
-Forbidden:
-
-- mutable historical correction
-- rewriting admitted entries
-- using current ERC-721 owner as historical truth
-
----
-
-# Proof Profile Layer
-
-Proof Profile controls admission validity.
-
-Architecture:
-
-Evidence
- |
-Proof Profile
- |
-Admission
- |
-Projection Entry
- |
-Temporal Query
-
-Proof Profile MUST NOT directly set finality.
-
----
-
-# Settlement Extension
-
-Settlement/gap workflow is optional and independent.
-
-Mandatory invariant:
+# Architecture
 
 ```text
-cancellation != finality
-
-gap closure != finality
+Wallet / Application
+        |
+Settlement SDK
+        |
+Settlement Engine
+        |
+ERC-8415 Adapter
+        |
+Projection Engine
+        |
+Institutional Registry
 ```
+
+---
+
+# Core Modules
+
+## 1. Projection Infrastructure
+
+Existing capability.
+
+Provides:
+
+- register identity;
+- projection entries;
+- temporal history;
+- holderAsOf(t);
+- entryAsOf(t);
+- isFinalAsOf(t).
+
+---
+
+## 2. Settlement Engine (New Product Layer)
+
+Provides asynchronous settlement lifecycle.
+
+State machine:
+
+```text
+Pending
+  |
+Locked
+  |
+Confirmed
+  |
+Released
+```
+
+Failure path:
+
+```text
+Rejected
+  |
+Refunded
+```
+
+The engine does not replace ERC-8415 semantics. It consumes projection finality.
+
+---
+
+## 3. Wallet / Application SDK (New Product Layer)
+
+Provides:
+
+- settlement intent creation;
+- pending state display;
+- locked asset/payment management;
+- confirmation handling;
+- deterministic release/refund.
+
+The wallet is a settlement client, not only an asset viewer.
+
+---
+
+## 4. Institutional Infrastructure
+
+Existing capability.
+
+Includes:
+
+- registry APIs;
+- verification engine;
+- institutional dashboard;
+- audit records;
+- tenant/security controls.
+
+These remain infrastructure components.
+
+---
+
+# Existing Development Preservation
+
+Completed modules are preserved and reclassified:
+
+KEEP:
+
+- registry layer;
+- verification engine;
+- ERC-8415 adapter;
+- SDK foundation;
+- institutional controls;
+- production infrastructure.
+
+Evolution:
+
+Registry Infrastructure
+        +
+Settlement Layer
+        +
+Wallet/Application Layer
+
+becomes ERC-8415 Native Settlement Kit.
 
 ---
 
 # Delivery Stages
 
-## Stage A
-Canonicalization
+## Stage 0
+Foundation
 
-## Stage B
-Semantic Kernel
+## Stage 1
+ERC-8415 Projection Core
 
-## Stage C
-Proof Profiles
+## Stage 2
+Verification Engine
 
-## Stage D
-Settlement Extension
+## Stage 3
+ERC-8415 Adapter
 
-## Stage E
-API / Reference Engine
+## Stage 4
+Settlement Engine MVP
 
-## Stage F
-SDK
+## Stage 5
+Wallet/Application SDK
 
-## Stage G
-Conformance Suite
+## Stage 6
+Institutional Console
 
-## Stage H
-Production Delivery
+## Stage 7
+Production Infrastructure
+
+---
+
+# MVP Acceptance
+
+Stage 1-5 MVP demonstrates:
+
+```text
+Asset
+ |
+Application
+ |
+Settlement Intent
+ |
+ERC-8415 Projection
+ |
+Registry Confirmation
+ |
+Release / Refund
+```
+
+Required:
+
+- asynchronous settlement lifecycle;
+- projection consumption;
+- finality-aware workflow;
+- executable tests;
+- evidence.
+
+---
+
+# Non Goals
+
+Not included:
+
+- replacing ERC-8415 semantics;
+- new blockchain standards;
+- custody authority;
+- legal registry authority;
+- generic NFT marketplace.
 
 ---
 
 # Definition of Done
 
-The implementation must reject ERC-3643/ERC-721 style shortcuts.
+Delivery requires:
 
-Required:
+- implementation;
+- tests;
+- documentation;
+- deployment evidence;
+- application-visible workflow.
 
-1. holderAsOf(t)
-2. isFinalAsOf(t)
-3. provisional/final semantics
-4. gap semantics
-5. proof-profile admission
-6. append-only projection
-7. executable conformance tests
+Code completion alone does not equal delivery.
