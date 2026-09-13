@@ -1,127 +1,99 @@
 # AGENTS.md
 
-# ERC-8415 Native Infrastructure Kit
+# ERC-8415 Native Settlement Kit
 
 ## Repository Execution Rule
 
 Codex MUST use repository-local files only.
 
-External ZIP files, chat attachments, and unpublished handoff documents are NOT execution sources.
-
 Required reading order:
 
-1. `AGENTS.md`
-2. `CODEX_TASK.md`
-3. `CODEX-SEMANTIC-HARDENING-TASK-v2.md`
-4. `docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md`
-5. `HANDOFF.md`
+1. AGENTS.md
+2. CODEX_TASK.md
+3. docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md
 
-If any required file is missing:
+If requirements are missing:
 
 STOP.
-Do not infer requirements.
-Do not search externally.
-Report repository inconsistency.
+Do not infer product scope.
 
 ---
 
 ## Product Boundary
 
-ERC-8415 Native Infrastructure Kit is ERC-8415-specific temporal proof, projection and finality infrastructure.
+ERC-8415 Native Settlement Kit is ERC-8415-aligned settlement infrastructure for wallets and applications.
+
+It provides:
+
+- projection infrastructure;
+- settlement state management;
+- wallet/application SDK capability;
+- institutional integration.
 
 It is NOT:
 
-- generic RWA registry
-- ERC-3643 clone
-- NFT marketplace
-- wallet
-- token trading platform
-- mutable blockchain CRUD system
+- a generic RWA registry;
+- an ERC-3643 replacement;
+- a marketplace;
+- a token trading platform;
+- a new blockchain standard.
 
 ---
 
-## P0 Semantic Rules
+## Semantic Rules
 
 The implementation MUST preserve:
 
-- `holderAsOf(tokenId, instant)`
-- `entryAsOf(tokenId, instant)`
-- `isFinalAsOf(tokenId, instant)`
-- provisional/final derived temporal semantics
-- append-only projection history
-- consecutive versions
-- strict effectiveAt ordering
-- commitment linkage
-- cancellation != finality
-- gap closure != finality
-- Proof Profile admission model
+- holderAsOf(tokenId, instant);
+- entryAsOf(tokenId, instant);
+- isFinalAsOf(tokenId, instant);
+- append-only projection history;
+- temporal finality semantics;
+- proof-profile admission model.
 
-Finality rule:
-
-```text
-For t >= firstEntry.effectiveAt:
-
-isFinalAsOf(t) == true
-iff
-there exists a strictly later admitted entry.
-```
+Settlement workflows MUST NOT redefine ERC-8415 semantics.
 
 ---
 
 ## Architecture
 
 ```text
-Evidence
+Wallet/Application
  |
-Proof Profile
+Settlement Engine
  |
-Admission
+ERC-8415 Adapter
  |
-Append-only Projection History
+Projection Infrastructure
  |
-Temporal Queries
- |
- + holderAsOf(t)
- + entryAsOf(t)
- + isFinalAsOf(t)
-```
-
-Forbidden:
-
-```text
-current ERC-721 owner -> historical holder
-proof success -> finality
-gap closed -> finality
-cancellation -> finality
-mutable update -> historical correction
+Institutional Registry
 ```
 
 ---
 
 ## Development Rule
 
-Execute:
+Existing useful engineering is preserved.
 
-`CODEX_TASK.md`
+Classify work:
 
-autonomously.
+KEEP
+FINISH-NOW
+FREEZE-LATER
+REMOVE
 
-Each stage requires:
-
-- implementation
-- executable tests
-- documentation
-- evidence
-
-No semantic TODO, fake assertion, skipped conformance test, or placeholder acceptance is allowed.
+Do not delete completed infrastructure when product positioning evolves.
 
 ---
 
-## Final Delivery
+## Delivery Rule
 
-Required:
+Each stage requires:
 
-- `FINAL-DELIVERY-REPORT.md`
-- `delivery-evidence-v2.md`
+- implementation;
+- tests;
+- documentation;
+- evidence;
+- user/application validation where applicable.
 
-Completion requires all ERC-8415 semantic conformance gates to pass.
+Code completion alone does not equal delivery completion.
