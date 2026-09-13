@@ -1,5 +1,3 @@
-# AGENTS.md
-
 # ERC-8415 Native Settlement Kit
 
 ## Repository Execution Rule
@@ -21,28 +19,57 @@ Do not infer product scope.
 
 ## Product Boundary
 
-ERC-8415 Native Settlement Kit is ERC-8415-aligned settlement infrastructure for wallets and applications.
+ERC-8415 Native Settlement Kit is ERC-8415-aligned settlement infrastructure.
 
-It provides:
+The Kit is consumed by:
+
+- Oracle integration layer;
+- wallet/application developers;
+- institutional asset systems.
+
+The Kit provides:
 
 - projection infrastructure;
 - settlement state management;
-- wallet/application SDK capability;
-- institutional integration.
+- SDK capability;
+- institutional integration primitives.
 
-It is NOT:
+The Kit is NOT:
 
-- a generic RWA registry;
-- an ERC-3643 replacement;
+- a wallet product;
+- an application frontend;
+- ArtFi itself;
 - a marketplace;
-- a token trading platform;
 - a new blockchain standard.
+
+---
+
+## Integration Boundary
+
+Architecture:
+
+```text
+Application / Wallet
+        |
+        v
+Oracle
+        |
+        v
+ERC-8415 Native Settlement Kit
+        |
+        v
+Institutional Registry
+```
+
+Oracle is the integration layer between ERC-8415 infrastructure and vertical applications.
+
+Applications consume Oracle capabilities. They do not directly redefine Kit semantics.
 
 ---
 
 ## Semantic Rules
 
-The implementation MUST preserve:
+Implementation MUST preserve:
 
 - holderAsOf(tokenId, instant);
 - entryAsOf(tokenId, instant);
@@ -51,23 +78,7 @@ The implementation MUST preserve:
 - temporal finality semantics;
 - proof-profile admission model.
 
-Settlement workflows MUST NOT redefine ERC-8415 semantics.
-
----
-
-## Architecture
-
-```text
-Wallet/Application
- |
-Settlement Engine
- |
-ERC-8415 Adapter
- |
-Projection Infrastructure
- |
-Institutional Registry
-```
+Settlement workflows MUST consume ERC-8415 semantics and MUST NOT redefine them.
 
 ---
 
@@ -94,6 +105,6 @@ Each stage requires:
 - tests;
 - documentation;
 - evidence;
-- user/application validation where applicable.
+- integration validation where applicable.
 
 Code completion alone does not equal delivery completion.
