@@ -1,15 +1,15 @@
 # ERC-8415 Native Settlement Kit (NIK)
-# Stage Delivery PRD v2.1
+# Stage Delivery PRD v2.2
 
 ## Product Definition
 
-ERC-8415 Native Settlement Kit is an application and infrastructure kit for building wallets and applications that manage asynchronous real-world asset settlement.
+ERC-8415 Native Settlement Kit is ERC-8415-aligned settlement infrastructure consumed by Oracle and application ecosystems.
 
 Positioning:
 
-**Stripe API + AWS SDK for ERC-8415 Native Settlement Applications**
+**Stripe API + AWS SDK for ERC-8415 Native Settlement Infrastructure**
 
-The Kit enables applications to separate:
+The Kit enables Oracle and application layers to separate:
 
 - fast on-chain execution;
 - slow off-chain registry confirmation;
@@ -17,11 +17,32 @@ The Kit enables applications to separate:
 
 ---
 
-# Product Principle
+# Product Boundary
 
-ERC-8415 is not only a projection standard.
+The Kit is NOT the wallet and NOT the application layer.
 
-It enables an asynchronous settlement model:
+Product relationship:
+
+```text
+Wallet / Application
+        |
+        v
+Oracle
+        |
+        v
+ERC-8415 Native Settlement Kit
+        |
+        v
+Institutional Registry
+```
+
+Oracle is responsible for connecting ERC-8415 infrastructure with vertical applications such as ArtFi.
+
+---
+
+# Core Principle
+
+ERC-8415 enables asynchronous settlement.
 
 ```text
 Fast Execution Layer
@@ -30,28 +51,10 @@ Fast Execution Layer
 ERC-8415 Projection Layer
         |
         v
-Slow Institutional Verification Layer
+Institutional Verification Layer
 ```
 
-The Kit provides the infrastructure between applications, wallets and ERC-8415 projections.
-
----
-
-# Architecture
-
-```text
-Wallet / Application
-        |
-Settlement SDK
-        |
-Settlement Engine
-        |
-ERC-8415 Adapter
-        |
-Projection Engine
-        |
-Institutional Registry
-```
+The Kit provides the infrastructure required for Oracle to consume projection state and manage settlement workflows.
 
 ---
 
@@ -72,11 +75,11 @@ Provides:
 
 ---
 
-## 2. Settlement Engine (New Product Layer)
+## 2. Settlement Engine
 
-Provides asynchronous settlement lifecycle.
+Infrastructure capability consumed by Oracle.
 
-State machine:
+Provides asynchronous settlement lifecycle:
 
 ```text
 Pending
@@ -96,21 +99,20 @@ Rejected
 Refunded
 ```
 
-The engine does not replace ERC-8415 semantics. It consumes projection finality.
+The Settlement Engine MUST NOT redefine ERC-8415 semantics.
 
 ---
 
-## 3. Wallet / Application SDK (New Product Layer)
+## 3. SDK Layer
 
-Provides:
+Provides infrastructure SDKs for Oracle and application developers.
 
-- settlement intent creation;
-- pending state display;
-- locked asset/payment management;
-- confirmation handling;
-- deterministic release/refund.
+Includes:
 
-The wallet is a settlement client, not only an asset viewer.
+- settlement interaction;
+- projection queries;
+- state handling;
+- integration interfaces.
 
 ---
 
@@ -122,17 +124,15 @@ Includes:
 
 - registry APIs;
 - verification engine;
-- institutional dashboard;
+- institutional controls;
 - audit records;
 - tenant/security controls.
-
-These remain infrastructure components.
 
 ---
 
 # Existing Development Preservation
 
-Completed modules are preserved and reclassified:
+Completed modules are preserved.
 
 KEEP:
 
@@ -145,13 +145,17 @@ KEEP:
 
 Evolution:
 
+```text
 Registry Infrastructure
         +
 Settlement Layer
         +
-Wallet/Application Layer
+Oracle Integration Layer
 
-becomes ERC-8415 Native Settlement Kit.
+becomes
+
+ERC-8415 Native Settlement Kit
+```
 
 ---
 
@@ -173,7 +177,7 @@ ERC-8415 Adapter
 Settlement Engine MVP
 
 ## Stage 5
-Wallet/Application SDK
+Oracle/Application SDK
 
 ## Stage 6
 Institutional Console
@@ -185,20 +189,18 @@ Production Infrastructure
 
 # MVP Acceptance
 
-Stage 1-5 MVP demonstrates:
+MVP demonstrates:
 
 ```text
-Asset
- |
 Application
  |
-Settlement Intent
+Oracle
  |
-ERC-8415 Projection
+ERC-8415 Settlement Kit
  |
-Registry Confirmation
+Projection Confirmation
  |
-Release / Refund
+Settlement Result
 ```
 
 Required:
@@ -216,7 +218,8 @@ Required:
 Not included:
 
 - replacing ERC-8415 semantics;
-- new blockchain standards;
+- wallet frontend product;
+- ArtFi application logic;
 - custody authority;
 - legal registry authority;
 - generic NFT marketplace.
@@ -231,6 +234,6 @@ Delivery requires:
 - tests;
 - documentation;
 - deployment evidence;
-- application-visible workflow.
+- Oracle/application integration validation.
 
-Code completion alone does not equal delivery.
+Code completion alone does not equal delivery completion.
