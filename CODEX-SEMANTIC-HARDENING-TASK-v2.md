@@ -6,11 +6,17 @@ ERC-8415 NIK is temporal proof, projection, and finality infrastructure. It is n
 Any implementation reduced to current owner + mutable token state + blockchain confirmation is invalid.
 
 ## Source of Truth
-Read the entire repository before implementation. Core semantic precedence:
-1. Draft #1356-aligned interface and semantic rules in this repository.
-2. CODEX_TASK.md and AGENTS.md invariants.
-3. Canonicalized v2.0 PRD.
-4. Older infrastructure/product documents only where non-conflicting.
+Read the entire repository before implementation. Semantic precedence:
+1. The ERC-8415 standard text — its definitions and normative rules.
+2. The consensus reached in the public discussion thread.
+3. The interface and semantic rules in this repository.
+4. CODEX_TASK.md and AGENTS.md invariants.
+5. Canonicalized v2.0 PRD and the Stage Delivery PRD.
+6. Older infrastructure/product documents only where non-conflicting.
+
+Where any two disagree, resolve per the conflict-resolution rule in AGENTS.md.
+The standard outranks this repository; a drafting slip in the thread does not
+outrank the standard.
 
 Preserve the Draft #1356-aligned interface shape:
 
@@ -100,6 +106,9 @@ Where required, enforce:
 entry[n+1].previousCommitment == commitment(entry[n])
 ```
 
+### Uniqueness scoping
+Commitment and registry-reference uniqueness is enforced strictly per token: within a token's projection history a commitment MUST NOT be reused. Do not build global cross-token state and do not reject an entry because another token holds the same commitment or registry reference. Preventing cross-token replay belongs to the registrar or the application; indexers surface collisions.
+
 ### Proof Profile boundary
 Proof Profile decides whether a candidate entry may be admitted. It MUST NOT directly set or override finality.
 
@@ -122,7 +131,17 @@ Implement testable MockMerkleProfile and MockZkProfile behind IProofProfile or c
 ## Gap Semantics
 Distinguish optional settlement/workflow gap from any evidence/knowledge gap concept.
 
-Treat evidence/knowledge GAP as out of scope by default unless the normative repository source explicitly requires it. Create `docs/GAP-SEMANTICS.md` documenting the canonical decision.
+Treat evidence/knowledge GAP as out of scope by default unless the standard explicitly requires it. Create `docs/GAP-SEMANTICS.md` documenting the canonical decision.
+
+The settlement gap carries these settled properties, which the implementation MUST enforce:
+- opening a gap MUST NOT block ERC-721 transfers;
+- settlement authority is separate from token ownership;
+- anyone may relay a proof, and submitting one grants no special rights;
+- at most one open projection gap per token;
+- admission is atomic — proof consumption, remote-height advancement, entry admission and gap closure succeed or fail together;
+- cancellation closes a gap and settles nothing; prior provisional history stays provisional.
+
+There is no rejection event and no veto. A proof that fails verification never becomes an admitted entry, and nothing retroactively invalidates an admitted entry. An indefinitely open gap is a liveness concern, not a veto.
 
 ## Concrete Implementation
 Interfaces alone are not delivery. Implement concrete projection contracts/modules enforcing:
@@ -154,8 +173,18 @@ Replace all semantic TODO/stub/fake tests. Implement at least:
 13. historical holder stability while later admission may change finality knowledge
 14. core works without settlement extension
 15. current ERC-721 ownership cannot rewrite historical ERC-8415 projection answers
+16. a confirming entry admitting the same holder finalizes the preceding interval
+17. an open gap does not block ERC-721 transfer
+18. cancellation leaves prior provisional history provisional
+19. a query for an instant preceding the first entry reverts, while isFinalAsOf returns false there without reverting
+20. per-token commitment uniqueness holds while the same commitment on a different token is admitted
 
 The suite MUST reject plausible but incorrect ERC-3643/ERC-721 implementations, including assumptions that current owner == historical holder, transfer confirmation == finality, proof-profile success == finality, gap closed == final, not cancelled == final, or latest DB row == holderAsOf(t).
+
+## Vocabulary
+State names come from the standard only: open gap / closed gap, provisional / final, admitted, confirmed holder, tradeable position. `Pending`, `Locked`, `Confirmed`, `Rejected`, `Released` and `Refunded` MUST NOT name states, events, enum members, API status values or database columns.
+
+Freshness is not finality. A signal derived from block depth is reorg safety of the projection head, named `REORG_SAFE`, and belongs to the optional non-normative freshness layer — never to `isFinalAsOf`.
 
 ## API Hardening
 Preserve temporal routes equivalent to:
@@ -165,6 +194,8 @@ Preserve temporal routes equivalent to:
 
 Admission endpoints MUST validate schema, version, effectiveAt, commitment linkage, and proof profile before append-only persistence.
 
+Temporal reads are point-in-time. Document that a consuming contract should query inside the same transaction as the dependent action, and that an off-chain read taken for display MUST NOT be cached across transactions.
+
 ## SDK Hardening
 Expose `entryAsOf`, `holderAsOf`, and `isFinalAsOf` directly. Preserve provisional/final semantics in return types.
 
@@ -172,6 +203,8 @@ Expose `entryAsOf`, `holderAsOf`, and `isFinalAsOf` directly. Preserve provision
 Create shared vectors/fixtures for contract, API/reference engine, and SDK where practical. Include positive and negative vectors for temporal boundaries, provisional/final intervals, gap closure without finality, invalid versions, invalid effectiveAt, broken commitments, valid/invalid proof profiles, and replay.
 
 ## Delivery Stages
+These lettered stages are workstreams executed inside the canonical Stage 0-7 plan in the Stage Delivery PRD; they are not a competing stage numbering.
+
 A. Canonicalization — create `docs/PRD-CANONICALIZATION-REPORT.md` and `docs/GAP-SEMANTICS.md`.
 B. Semantic Kernel — concrete projection and temporal/finality rules.
 C. Proof Profiles — profile admission and negative tests.
