@@ -1,0 +1,10 @@
+services:
+  kit:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    working_dir: /srv/erc8415-kit
+    volumes:
+      - ..:/srv/erc8415-kit
+      - /srv/erc8415-kit/node_modules
+    command: npm run verify
