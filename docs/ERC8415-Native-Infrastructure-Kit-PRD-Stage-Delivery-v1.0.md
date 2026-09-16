@@ -2,6 +2,14 @@
 
 ## Stage Delivery Engineering PRD v1.0
 
+> Superseded. Kept for delivery history only. The current stage plan is
+> `ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md`, and the
+> current semantics are `ERC8415-Native-Infrastructure-Kit-PRD-v2.1.md` and
+> `ERC8415-SEMANTIC-MODEL.md`. Where this document conflicts with them, they
+> win. In particular, the lifecycle state names used below predate the
+> vocabulary rule: projection state is open gap / closed gap, provisional /
+> final, and admitted.
+
 ## Product Definition
 
 ERC-8415 Native Infrastructure Kit (NIK) is an institutional digital asset infrastructure layer.

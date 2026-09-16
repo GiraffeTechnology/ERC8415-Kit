@@ -1,19 +1,24 @@
-# ERC-8415 Native Settlement Kit (NIK)
+# ERC-8415 Native Infrastructure Kit (NIK)
 # Stage Delivery PRD v2.2
 
 ## Product Definition
 
-ERC-8415 Native Settlement Kit is ERC-8415-aligned settlement infrastructure consumed by Oracle and application ecosystems.
+ERC-8415 Native Infrastructure Kit is ERC-8415-aligned projection infrastructure
+consumed by Oracle and application ecosystems.
 
 Positioning:
 
-**Stripe API + AWS SDK for ERC-8415 Native Settlement Infrastructure**
+**Stripe API + AWS SDK for ERC-8415 native assets**
 
-The Kit enables Oracle and application layers to separate:
+The Kit enables Oracle and application layers to keep three things apart:
 
-- fast on-chain execution;
-- slow off-chain registry confirmation;
-- deterministic settlement completion.
+- fast on-chain execution — the tradeable position;
+- the register's own confirmed-holder sequence, which lags it;
+- the historical query semantics that say which one is being asked about, and
+  whether that answer can still move.
+
+Settlement itself is composed by the application. The Kit supplies the record
+and the queries over it.
 
 ---
 
@@ -30,19 +35,21 @@ Wallet / Application
 Oracle
         |
         v
-ERC-8415 Native Settlement Kit
+ERC-8415 Native Infrastructure Kit
         |
         v
 Institutional Registry
 ```
 
-Oracle is responsible for connecting ERC-8415 infrastructure with vertical applications such as ArtFi.
+Oracle is responsible for connecting ERC-8415 infrastructure with vertical
+applications such as ArtFi.
 
 ---
 
 # Core Principle
 
-ERC-8415 enables asynchronous settlement.
+ERC-8415 records an asynchronous projection. It is a faithful record and audit
+trail across the asynchronous boundary — a mirror, not a tribunal.
 
 ```text
 Fast Execution Layer
@@ -54,7 +61,31 @@ ERC-8415 Projection Layer
 Institutional Verification Layer
 ```
 
-The Kit provides the infrastructure required for Oracle to consume projection state and manage settlement workflows.
+The Kit provides the infrastructure required for Oracle to consume projection
+state and compose its own settlement workflow. It records both sequences and
+exposes their alignment at an instant; it does not guarantee that they converge.
+If the registrar stops issuing entries, recent instants may stay non-final
+indefinitely.
+
+---
+
+# Vocabulary Rule
+
+Infrastructure state names come from the protocol only:
+
+- **open gap / closed gap** — whether a change is in flight (`openGapOf`,
+  `openedAt`);
+- **provisional / final** — whether a historical answer could still change
+  (`isFinalAsOf`);
+- **admitted** — an entry accepted through a verified proof.
+
+`Pending` / `Locked` / `Confirmed` / `Rejected` / `Released` / `Refunded` are
+not protocol states. They MUST NOT name Kit states, events or API status values.
+An application escrow may use such names inside its own state machine, and must
+document them as application state rather than projection state.
+
+There is no rejection event. A proof that fails verification never becomes an
+admitted entry, and no mechanism retroactively invalidates an admitted entry.
 
 ---
 
@@ -71,35 +102,48 @@ Provides:
 - temporal history;
 - holderAsOf(t);
 - entryAsOf(t);
-- isFinalAsOf(t).
+- isFinalAsOf(t);
+- currentEntry / entryAt / entryCount.
+
+Requirements: append-only history, consecutive versions, strictly increasing
+effectiveAt, commitment linkage, per-token commitment uniqueness. Cross-token
+uniqueness of commitments and registry references is out of scope and belongs to
+the registrar or the application.
 
 ---
 
-## 2. Settlement Engine
+## 2. Settlement Composition Engine
 
-Infrastructure capability consumed by Oracle.
+Infrastructure capability consumed by Oracle. It exposes gap primitives and
+leaves the economic workflow to the consumer.
 
-Provides asynchronous settlement lifecycle:
-
-```text
-Pending
-  |
-Locked
-  |
-Confirmed
-  |
-Released
-```
-
-Failure path:
+Projection lifecycle:
 
 ```text
-Rejected
+gap opened          openGapOf == true from openedAt
   |
-Refunded
+  |-- entry admitted  -> gap closed by admission; history extended
+  |
+  `-- gap cancelled   -> gap closed without admission; projection unchanged
 ```
 
-The Settlement Engine MUST NOT redefine ERC-8415 semantics.
+Admission is atomic: proof consumption, remote-height advancement, entry
+admission and gap closure succeed or fail together.
+
+Mandatory invariants:
+
+```text
+cancellation    != finality
+gap closure     != finality
+proof verified  != finality
+timeout expiry  != finality
+```
+
+Opening a gap does not freeze ERC-721 transfers. Settlement authority is
+separate from token ownership. Anyone may relay a proof, and submitting one
+grants no special rights.
+
+The Settlement Composition Engine MUST NOT redefine ERC-8415 semantics.
 
 ---
 
@@ -109,10 +153,14 @@ Provides infrastructure SDKs for Oracle and application developers.
 
 Includes:
 
-- settlement interaction;
 - projection queries;
-- state handling;
+- gap and admission interaction;
+- conformance discovery against the frozen ERC-165 identifiers;
 - integration interfaces.
+
+The SDK MUST surface the three signals separately — final/provisional, open
+gap/closed gap, and the optional freshness classification — and MUST NOT collapse
+them into a single status.
 
 ---
 
@@ -127,6 +175,10 @@ Includes:
 - institutional controls;
 - audit records;
 - tenant/security controls.
+
+The chain carries a record commitment and a registry-reference locator, never the
+register's contents. Resolving a reference requires entitlement to read the
+register.
 
 ---
 
@@ -148,13 +200,13 @@ Evolution:
 ```text
 Registry Infrastructure
         +
-Settlement Layer
+Projection and Gap Primitives
         +
 Oracle Integration Layer
 
 becomes
 
-ERC-8415 Native Settlement Kit
+ERC-8415 Native Infrastructure Kit
 ```
 
 ---
@@ -174,7 +226,7 @@ Verification Engine
 ERC-8415 Adapter
 
 ## Stage 4
-Settlement Engine MVP
+Settlement Composition Engine MVP
 
 ## Stage 5
 Oracle/Application SDK
@@ -196,20 +248,43 @@ Application
  |
 Oracle
  |
-ERC-8415 Settlement Kit
+ERC-8415 Native Infrastructure Kit
  |
-Projection Confirmation
+Admitted Projection Entry
  |
-Settlement Result
+Temporal Query Result
 ```
 
 Required:
 
-- asynchronous settlement lifecycle;
-- projection consumption;
-- finality-aware workflow;
+- gap open, admission and cancellation paths, with cancellation leaving
+  provisional history provisional;
+- projection consumption through temporal queries;
+- finality-aware workflow, where finality is read from `isFinalAsOf` and never
+  recomputed or inferred;
+- a confirming entry that finalises an interval without changing the holder;
 - executable tests;
 - evidence.
+
+Negative cases are part of acceptance: a token whose `ownerOf` and confirmed
+holder diverge; a closed gap over a non-final instant; a cancelled settlement;
+and an instant preceding the first entry.
+
+---
+
+# Integration Requirements
+
+`holderAsOf`, `isFinalAsOf` and `openGapOf` are point-in-time reads, and a proof
+can land between the read and the dependent action. The recommended integration
+shape is the on-chain atomic read — query in the same transaction as the action,
+which closes the window rather than narrowing it. An off-chain read taken for
+display MUST NOT be cached across transactions.
+
+The escrow pattern — quarantine consideration while a gap is open, release on
+admission, refund if the gap is cancelled without admission — is a non-normative
+reference pattern. Applications composing on non-final state accept that risk
+themselves; no single unwind rule is mandated, because one would break either the
+netting model or the sequential chain-of-title model.
 
 ---
 
@@ -222,6 +297,10 @@ Not included:
 - ArtFi application logic;
 - custody authority;
 - legal registry authority;
+- adjudication of legal title, entitlement or compliance outcomes;
+- prescribed remedy — cancellation policy, escrow, timeouts, refunds, downstream
+  unwinding;
+- cross-token uniqueness enforcement;
 - generic NFT marketplace.
 
 ---
