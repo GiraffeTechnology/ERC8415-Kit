@@ -96,6 +96,26 @@ A later entry may confirm the same holder. Such a confirming entry finalises the
 preceding interval without the holder having changed, and is the mechanism an
 application waiting on historical finality relies on.
 
+### Recorded deviation: isFinalAsOf is not a reorg-depth signal
+
+`isFinalAsOf(tokenId, t)` answers exactly one question: can a later admission
+still change the confirmed holder at `t`. It is derived from admitted history
+and from nothing else.
+
+The Scope draft posted in the discussion thread (#22) described `isFinalAsOf` as
+indicating "whether on-chain reorg-depth makes the recorded historical
+projection immutable". That reading is not adopted here. It conflicts with the
+ERC body text, where finality is the later-admission rule above, and with the
+conclusion reached later in the same thread (#19, #20), where the block-depth
+signal was deliberately separated from finality and renamed `REORG_SAFE` so that
+a consumer could not read registrar-confirmed finality into a check that only
+guarantees EVM chain immutability. Collapsing the two back together is the exact
+category error that rename exists to prevent.
+
+Where the thread and the ERC body text disagree, the ERC body text governs.
+Reorg depth belongs to the non-normative freshness layer below, never to
+`isFinalAsOf`.
+
 ## Provisional State
 
 The latest admitted interval remains provisional until later history closes it.

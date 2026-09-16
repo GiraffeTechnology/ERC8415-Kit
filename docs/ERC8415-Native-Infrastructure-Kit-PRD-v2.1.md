@@ -62,6 +62,12 @@ admission can still change that answer; `openGapOf` and `openedAt` for whether a
 change is in flight; and the entry walk `currentEntry`, `entryAt`, `entryCount`,
 `entryAsOf`.
 
+`isFinalAsOf` reports the later-admission rule and nothing else. The thread's
+Scope draft (#22) phrased it as a reorg-depth immutability check; that phrasing
+is not adopted, because it conflicts with the ERC body text and with the same
+thread's own `REORG_SAFE` separation (#19, #20). Where they disagree, the ERC
+body text governs.
+
 **3. Guarantee deterministic auditability of the recorded transitions.** Every
 admitted entry and gap transition is visible on chain. Admission is atomic:
 proof consumption, remote-height advancement, entry admission and gap closure

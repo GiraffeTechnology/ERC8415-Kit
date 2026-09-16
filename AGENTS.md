@@ -153,6 +153,14 @@ moving.
 FINAL is derived, never a mutable lifecycle flag. It MUST NOT be set by an
 operator, a proof profile, a settlement workflow, a cancellation or a timeout.
 
+`isFinalAsOf` is not a reorg-depth signal. The Scope draft posted in the
+discussion thread (#22) described it as reporting whether on-chain reorg depth
+makes historical projection immutable; that conflicts with the ERC body text and
+with the later conclusion in the same thread (#19, #20) that separated the
+block-depth signal out as `REORG_SAFE`. The ERC body text governs: finality is
+the later-admission rule above, and reorg depth belongs to the non-normative
+freshness layer. See `docs/ERC8415-SEMANTIC-MODEL.md`.
+
 Mandatory invariants:
 
 ```text
