@@ -18,6 +18,7 @@ export class MemoryChainAdapter implements RemoteChainAdapter {
   readonly contract: string;
   #finalizedThrough: bigint;
   readonly #heights = new Map<string, bigint>();
+  readonly #roots = new Map<string, string>();
 
   constructor(options: MemoryChainOptions = {}) {
     this.chainId = options.chainId ?? 1n;
@@ -27,6 +28,15 @@ export class MemoryChainAdapter implements RemoteChainAdapter {
 
   isFinalized(height: bigint): boolean {
     return height > 0n && height <= this.#finalizedThrough;
+  }
+
+  stateRootAt(height: bigint): string | undefined {
+    return this.#roots.get(height.toString());
+  }
+
+  /** Test control: publish an accepted state root at a height. */
+  setStateRoot(height: bigint, root: string): void {
+    this.#roots.set(height.toString(), root);
   }
 
   acceptedHeight(tokenId: TokenId): bigint {

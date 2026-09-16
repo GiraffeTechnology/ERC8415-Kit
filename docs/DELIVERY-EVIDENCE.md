@@ -55,11 +55,34 @@ Additional Stage 1 evidence:
 | No route writes finality | `api.test.ts` › no route writes finality | delivered |
 | The server serves the route table over a socket | `api.test.ts` › the server serves the route table over a socket | delivered |
 
+## Stage 2 — Verification Engine
+
+Proof verification behind the profile interface, with the binding that makes a
+proof non-transferable between admissions.
+
+| Requirement | Implementation | Test (`verification.test.ts`) | Status |
+| --- | --- | --- | --- |
+| Merkle inclusion against accepted remote state | `engine/proof/merkleProfile.ts` | a valid merkle inclusion proof admits | delivered |
+| A proof is bound to one admission | `engine/proof/binding.ts` | a merkle proof for a different admission does not verify | delivered |
+| Every bound field is covered by the digest | `binding.ts` `bindingDigest` | every bound field changes the digest | delivered |
+| A tampered path or flipped sibling fails | `merkleProfile.ts` | a tampered merkle path is refused | delivered |
+| A malformed payload is refused, not fatal | `merkleProfile.ts` | a malformed proof payload is refused, not crashed on | delivered |
+| Inclusion is checked against the adapter's root, never a submitted one | `merkleProfile.ts`, `engine/ports.ts` | a proof against a height with no accepted root is refused | delivered |
+| Succinct-proof profile behind the same interface | `engine/proof/zkProfile.ts` | the zk profile verifies a proof bound to this admission | delivered |
+| A proof does not carry to another token, entry or forgery | `zkProfile.ts` | a zk proof does not carry to another admission | delivered |
+| Proof verification is not finality | `engine/projection/kernel.ts` | a verified proof is not finality | delivered |
+| No mutable asset state machine anywhere in the engine | `store.ts`, profiles | the verification engine has no mutable asset state machine | delivered |
+| A refused admission advances no remote height | `store.ts` `admit` | an admission refused by the profile advances no remote height | delivered |
+
+The zk profile is a mock and is documented as one: the proof is a digest over
+the verifying key, the accepted state root and the admission binding. What it
+exercises for real is non-transferability; a succinct verifier replaces it
+without anything above that file changing.
+
 ## Not yet delivered
 
 | Stage | Blocking gap |
 | --- | --- |
-| 2 | real proof profiles; the suite currently drives admission through test doubles |
 | 3 | Solidity contracts and the Ethereum adapter |
 | 4 | settlement composition workflow and `docs/GAP-SEMANTICS.md` |
 | 5 | JavaScript and Python SDKs |

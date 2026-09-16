@@ -11,6 +11,12 @@ export interface RemoteChainAdapter {
   readonly chainId: bigint;
   readonly contract: string;
   isFinalized(height: bigint): boolean;
+  /**
+   * The state root accepted for a height, or undefined if no state is
+   * accepted there. A proof profile verifies inclusion against this, never
+   * against a root a submitter supplies alongside the proof.
+   */
+  stateRootAt(height: bigint): string | undefined;
   acceptedHeight(tokenId: TokenId): bigint;
   advanceHeight(tokenId: TokenId, height: bigint): void;
 }
