@@ -84,6 +84,13 @@ export class ProjectionStore {
     return this.#openGaps.get(key(tokenId)) ?? ZERO_BYTES32;
   }
 
+  /** Every settlement recorded for a token, open or closed, oldest first. */
+  settlementsFor(tokenId: TokenId): readonly Settlement[] {
+    return [...this.#settlements.values()]
+      .filter((record) => record.tokenId === tokenId)
+      .sort((a, b) => (a.openedAt < b.openedAt ? -1 : a.openedAt > b.openedAt ? 1 : 0));
+  }
+
   settlement(settlementId: Bytes32): Settlement {
     const record = this.#settlements.get(settlementId);
     if (record === undefined) {

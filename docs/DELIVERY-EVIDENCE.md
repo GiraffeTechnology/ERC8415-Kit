@@ -159,9 +159,28 @@ decision is in `docs/GAP-SEMANTICS.md`.
 Both SDKs are dependency-free: the JavaScript client uses `fetch`, the Python
 client the standard library only.
 
+## Stage 6 — Institutional Console
+
+Read-only over the projection, with roles deciding what is shown.
+
+| Requirement | Implementation | Test (`console.test.ts`) | Status |
+| --- | --- | --- | --- |
+| Tradeable position and confirmed holder side by side | `console/view.ts` `overview` | the tradeable position and the confirmed holder are separate facts | delivered |
+| An uncovered instant is never filled in from the owner | `view.ts` | an uncovered instant shows no confirmed holder and says why | delivered |
+| No projection is distinguished from not covered | `view.ts` `coverage` | a token with no projection is distinguished from an uncovered instant | delivered |
+| The three signals are never merged | `console/render.ts` | the overview never merges the three signals | delivered |
+| Provisional reads as provisional, not as failure | `render.ts` | a provisional instant is labelled provisional, not failed | delivered |
+| The timeline shows commitments and locators only | `view.ts` `timeline` | the timeline carries commitments and locators, never register contents | delivered |
+| Closed and open intervals are visible as such | `view.ts` `timeline` | the timeline shows a closed entry as closed and the latest as open | delivered |
+| Roles gate what the console shows | `engine/access/roles.ts` | roles gate what the console will show | delivered |
+| Only an admin changes a role | `roles.ts` `assign` | only an admin may change a role | delivered |
+| No role can write to a projection | `console/server.ts` | no role can write to a projection, because no route can | delivered |
+| Malformed input refused | `server.ts` | a malformed token id or instant is refused | delivered |
+| Readable without Web3 knowledge | `render.ts` | the console reads without Web3 vocabulary in the page copy | delivered |
+| Output is escaped | `render.ts` `escape` | page output escapes what it renders | delivered |
+
 ## Not yet delivered
 
 | Stage | Blocking gap |
 | --- | --- |
-| 6 | institutional console |
 | 7 | production infrastructure |
