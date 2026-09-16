@@ -6,9 +6,12 @@
 > `ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md`, and the
 > current semantics are `ERC8415-Native-Infrastructure-Kit-PRD-v2.1.md` and
 > `ERC8415-SEMANTIC-MODEL.md`. Where this document conflicts with them, they
-> win. In particular, the lifecycle state names used below predate the
-> vocabulary rule: projection state is open gap / closed gap, provisional /
-> final, and admitted.
+> win, per the conflict-resolution rule in AGENTS.md. Specifically void below:
+> the `REGISTERED -> ... -> REVOKED` mutable state machine, freeze and revoke
+> authority, `updateState` / `freezeAsset` / `revokeAsset` / `settleAsset`,
+> finality recorded as stored state, and the Stage 0-6 numbering. Projection
+> state is open gap / closed gap, provisional / final, and admitted; finality is
+> derived from admitted history on query.
 
 ## Product Definition
 

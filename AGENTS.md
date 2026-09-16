@@ -13,9 +13,41 @@ Required reading order:
 5. docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md
 6. docs/ERC8415-SEMANTIC-MODEL.md
 
-The ERC itself ranks above all of them. Where this repository and the ERC
-disagree, the ERC wins, and the disagreement MUST be fixed here rather than
-worked around in code.
+---
+
+## Conflict Resolution
+
+Where any two sources disagree, resolve in this order:
+
+1. **The ERC-8415 standard text** — its definitions and normative rules;
+2. **The consensus reached in the public discussion thread** — the positions
+   the thread settled on, not a single draft reply in isolation;
+3. **This repository's documents**, in the reading order above.
+
+Two consequences follow, and both have already been applied:
+
+- A drafting slip in the thread does not outrank the standard. The thread's
+  Scope draft (#22) described `isFinalAsOf` as a reorg-depth immutability
+  check; the standard defines it as the later-admission rule, and the thread's
+  own later conclusion (#19, #20) separated the block-depth signal out as
+  `REORG_SAFE`. The standard governs.
+- A legacy repository document does not outrank either. Where an earlier task
+  document specifies a mutable asset state machine, freeze or revoke authority,
+  a stored finality record, or a generic institutional registry boundary, those
+  instructions are void. The projection semantics below govern.
+
+A disagreement MUST be fixed here rather than worked around in code. Do not
+silently reinterpret a conflict: record the resolution where the conflicting
+text lives.
+
+### Canonical stage plan
+
+Stage numbering is `Stage 0` through `Stage 7` as defined in
+`docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md`. The
+lettered `Stage A` through `Stage H` in `CODEX_TASK.md` and
+`CODEX-SEMANTIC-HARDENING-TASK-v2.md` are workstreams executed within that
+plan, not a competing numbering. Any other stage scheme in this repository is
+superseded.
 
 If requirements are missing:
 
