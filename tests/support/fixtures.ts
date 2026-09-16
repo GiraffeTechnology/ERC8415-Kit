@@ -1,13 +1,24 @@
 import { ProjectionStore } from '../../engine/projection/store.ts';
 import { ProofProfileRegistry, admitted, refused, type ProofProfile } from '../../engine/proof/profile.ts';
 import { MemoryChainAdapter } from '../../adapters/memory/memoryChain.ts';
-import { ZERO_COMMITMENT, type CandidateEntry } from '../../engine/projection/types.ts';
+import { ZERO_BYTES32, type Bytes32, type CandidateEntry, type Settlement } from '../../engine/projection/types.ts';
 
 export const ALICE = '0x' + 'aa'.repeat(20);
 export const BOB = '0x' + 'bb'.repeat(20);
 export const CAROL = '0x' + 'cc'.repeat(20);
 
-export const commitment = (n: number): string => '0x' + n.toString(16).padStart(64, '0');
+export const commitment = (n: number): Bytes32 => '0x' + n.toString(16).padStart(64, '0');
+export const REFERENCE: Bytes32 = '0x' + 'ab'.repeat(32);
+
+/** A full settlement record, so tests state only what they care about. */
+export const gap = (over: Partial<Omit<Settlement, 'status' | 'tokenId'>> = {}): Omit<Settlement, 'status' | 'tokenId'> => ({
+  settlementId: over.settlementId ?? commitment(0x51),
+  initiator: over.initiator ?? ALICE,
+  expectedHolder: over.expectedHolder ?? BOB,
+  snapshotHash: over.snapshotHash ?? commitment(0x5a),
+  openedAt: over.openedAt ?? 120n,
+  deadline: over.deadline ?? 1_000n,
+});
 
 /**
  * A profile that admits anything. It exists so Stage 1 can exercise the
@@ -37,8 +48,8 @@ export const harness = (): Harness => {
   profiles.register(closedProfile);
   const adapter = new MemoryChainAdapter();
   const store = new ProjectionStore({
-    registerId: 'register:test',
-    verificationProfile: 'test:open',
+    registerId: commitment(0x8415),
+    verificationProfile: commitment(0x0be7),
     profiles,
     adapter,
   });
@@ -49,9 +60,9 @@ export interface EntrySpec {
   readonly version: bigint;
   readonly holder: string;
   readonly effectiveAt: bigint;
-  readonly recordCommitment: string;
-  readonly previousCommitment?: string;
-  readonly registryReference?: string;
+  readonly recordCommitment: Bytes32;
+  readonly previousCommitment?: Bytes32;
+  readonly registryReference?: Bytes32;
 }
 
 export const entry = (spec: EntrySpec): CandidateEntry => ({
@@ -59,8 +70,8 @@ export const entry = (spec: EntrySpec): CandidateEntry => ({
   holder: spec.holder,
   effectiveAt: spec.effectiveAt,
   recordCommitment: spec.recordCommitment,
-  previousCommitment: spec.previousCommitment ?? ZERO_COMMITMENT,
-  registryReference: spec.registryReference ?? 'registry://test/record',
+  previousCommitment: spec.previousCommitment ?? ZERO_BYTES32,
+  registryReference: spec.registryReference ?? REFERENCE,
 });
 
 /** Admit a candidate, advancing the remote height so each proof is fresh. */

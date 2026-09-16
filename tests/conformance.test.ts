@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { ProjectionError } from '../engine/projection/errors.ts';
-import { ZERO_COMMITMENT } from '../engine/projection/types.ts';
-import { ALICE, BOB, CAROL, admit, commitment, entry, harness } from './support/fixtures.ts';
+import { ZERO_BYTES32 } from '../engine/projection/types.ts';
+import { ALICE, BOB, CAROL, admit, commitment, entry, gap, harness } from './support/fixtures.ts';
 
 const rejects = (code: string, run: () => unknown): void => {
   assert.throws(run, (error: unknown) => {
@@ -74,11 +74,11 @@ test('effectiveAt must strictly increase', () => {
 // 4
 test('holderAsOf resolves at the interval boundaries', () => {
   const h = twoEntries();
-  assert.equal(h.store.holderAsOf(TOKEN, 100n).holder, ALICE);
-  assert.equal(h.store.holderAsOf(TOKEN, 129n).holder, ALICE);
+  assert.equal(h.store.holderAsOf(TOKEN, 100n), ALICE);
+  assert.equal(h.store.holderAsOf(TOKEN, 129n), ALICE);
   // The interval is half-open: 130 belongs to the entry that starts there.
-  assert.equal(h.store.holderAsOf(TOKEN, 130n).holder, BOB);
-  assert.equal(h.store.holderAsOf(TOKEN, 1_000_000n).holder, BOB);
+  assert.equal(h.store.holderAsOf(TOKEN, 130n), BOB);
+  assert.equal(h.store.holderAsOf(TOKEN, 1_000_000n), BOB);
 });
 
 // 5
@@ -106,9 +106,9 @@ test('isFinalAsOf is exactly the later-entry rule', () => {
 test('a holder is known while the answer is still provisional', () => {
   const h = harness();
   admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
-  const answer = h.store.holderAsOf(TOKEN, 140n);
-  assert.equal(answer.holder, ALICE);
-  assert.equal(answer.provisional, true);
+  assert.equal(h.store.holderAsOf(TOKEN, 140n), ALICE);
+  // Provisional is not a field on the answer; it is the negation of the
+  // separate finality question, which is the whole point of two accessors.
   assert.equal(h.store.isFinalAsOf(TOKEN, 140n), false);
 });
 
@@ -116,21 +116,20 @@ test('a holder is known while the answer is still provisional', () => {
 test('closing a gap does not finalise anything', () => {
   const h = harness();
   admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
-  h.store.openGap(TOKEN, { openedAt: 120n, settlementId: 'settlement:1' });
+  h.store.openGap(TOKEN, gap({ openedAt: 120n, settlementId: commitment(0x51) }));
   assert.equal(h.store.isFinalAsOf(TOKEN, 110n), false);
 
   h.store.cancelGap(TOKEN);
-  assert.equal(h.store.openGapOf(TOKEN), undefined);
+  assert.equal(h.store.openGapOf(TOKEN), ZERO_BYTES32);
   // The gap is closed and the instant is exactly as provisional as before.
   assert.equal(h.store.isFinalAsOf(TOKEN, 110n), false);
-  assert.equal(h.store.holderAsOf(TOKEN, 110n).provisional, true);
 });
 
 // 8
 test('finality does not depend on gap state', () => {
   const h = twoEntries();
   const finalBefore = h.store.isFinalAsOf(TOKEN, 110n);
-  h.store.openGap(TOKEN, { openedAt: 105n, settlementId: 'settlement:2' });
+  h.store.openGap(TOKEN, gap({ openedAt: 105n, settlementId: commitment(0x52) }));
   assert.equal(h.store.isFinalAsOf(TOKEN, 110n), finalBefore);
   h.store.cancelGap(TOKEN);
   assert.equal(h.store.isFinalAsOf(TOKEN, 110n), finalBefore);
@@ -204,7 +203,7 @@ test('the commitment chain is validated', () => {
 test('a historical holder is stable while a later admission changes finality', () => {
   const h = harness();
   admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
-  assert.equal(h.store.holderAsOf(TOKEN, 110n).holder, ALICE);
+  assert.equal(h.store.holderAsOf(TOKEN, 110n), ALICE);
   assert.equal(h.store.isFinalAsOf(TOKEN, 110n), false);
 
   admit(h, TOKEN, entry({
@@ -213,15 +212,15 @@ test('a historical holder is stable while a later admission changes finality', (
   }));
 
   // The holder at 110 never moved; only what can still change did.
-  assert.equal(h.store.holderAsOf(TOKEN, 110n).holder, ALICE);
+  assert.equal(h.store.holderAsOf(TOKEN, 110n), ALICE);
   assert.equal(h.store.isFinalAsOf(TOKEN, 110n), true);
 });
 
 // 14
 test('the core works with no settlement extension in play', () => {
   const h = twoEntries();
-  assert.equal(h.store.openGapOf(TOKEN), undefined);
-  assert.equal(h.store.holderAsOf(TOKEN, 120n).holder, ALICE);
+  assert.equal(h.store.openGapOf(TOKEN), ZERO_BYTES32);
+  assert.equal(h.store.holderAsOf(TOKEN, 120n), ALICE);
   assert.equal(h.store.isFinalAsOf(TOKEN, 120n), true);
   assert.equal(h.store.entryCount(TOKEN), 2);
 });
@@ -253,9 +252,8 @@ test('a confirming entry finalises the preceding interval without a holder chang
     recordCommitment: commitment(2), previousCommitment: commitment(1),
   }));
 
-  assert.equal(h.store.holderAsOf(TOKEN, 150n).holder, ALICE);
+  assert.equal(h.store.holderAsOf(TOKEN, 150n), ALICE);
   assert.equal(h.store.isFinalAsOf(TOKEN, 150n), true);
-  assert.equal(h.store.holderAsOf(TOKEN, 150n).provisional, false);
 });
 
 // 17
@@ -268,29 +266,30 @@ test('an open gap changes no projection answer', () => {
     current: h.store.currentEntry(TOKEN),
   };
 
-  h.store.openGap(TOKEN, { openedAt: 140n, settlementId: 'settlement:3' });
+  h.store.openGap(TOKEN, gap({ openedAt: 140n, settlementId: commitment(0x53) }));
 
-  assert.deepEqual(h.store.holderAsOf(TOKEN, 120n), before.holder);
+  assert.equal(h.store.holderAsOf(TOKEN, 120n), before.holder);
   assert.equal(h.store.isFinalAsOf(TOKEN, 120n), before.final);
   assert.equal(h.store.entryCount(TOKEN), before.count);
   assert.deepEqual(h.store.currentEntry(TOKEN), before.current);
 
   // And at most one gap is open at a time.
-  assert.throws(() => h.store.openGap(TOKEN, { openedAt: 141n, settlementId: 'settlement:4' }));
+  assert.throws(() => h.store.openGap(TOKEN, gap({ openedAt: 141n, settlementId: commitment(0x54) })));
 });
 
 // 18
 test('cancellation leaves prior provisional history provisional', () => {
   const h = harness();
   admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
-  h.store.openGap(TOKEN, { openedAt: 120n, settlementId: 'settlement:5' });
+  h.store.openGap(TOKEN, gap({ openedAt: 120n, settlementId: commitment(0x55) }));
 
   const before = h.store.holderAsOf(TOKEN, 140n);
+  const finalBefore = h.store.isFinalAsOf(TOKEN, 140n);
   h.store.cancelGap(TOKEN);
-  const after = h.store.holderAsOf(TOKEN, 140n);
 
-  assert.deepEqual(after, before);
-  assert.equal(after.provisional, true);
+  assert.equal(h.store.holderAsOf(TOKEN, 140n), before);
+  assert.equal(h.store.isFinalAsOf(TOKEN, 140n), finalBefore);
+  assert.equal(finalBefore, false);
   assert.equal(h.store.entryCount(TOKEN), 1);
   rejects('NO_OPEN_GAP', () => h.store.cancelGap(TOKEN));
 });
@@ -328,7 +327,7 @@ test('commitment uniqueness is per token, not across tokens', () => {
   const other = 2n;
   admit(h, other, entry({ version: 1n, holder: CAROL, effectiveAt: 100n, recordCommitment: commitment(1) }));
   assert.equal(h.store.entryCount(other), 1);
-  assert.equal(h.store.holderAsOf(other, 100n).holder, CAROL);
+  assert.equal(h.store.holderAsOf(other, 100n), CAROL);
 });
 
 test('the worked example from the discussion resolves as described', () => {
@@ -337,15 +336,15 @@ test('the worked example from the discussion resolves as described', () => {
   // effective at 130, and the entry lands later.
   admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
 
-  assert.equal(h.store.holderAsOf(TOKEN, 140n).holder, ALICE);
-  assert.equal(h.store.holderAsOf(TOKEN, 140n).provisional, true);
+  assert.equal(h.store.holderAsOf(TOKEN, 140n), ALICE);
+  assert.equal(h.store.isFinalAsOf(TOKEN, 140n), false);
 
   admit(h, TOKEN, entry({
     version: 2n, holder: BOB, effectiveAt: 130n,
     recordCommitment: commitment(2), previousCommitment: commitment(1),
   }));
 
-  assert.equal(h.store.holderAsOf(TOKEN, 140n).holder, BOB);
+  assert.equal(h.store.holderAsOf(TOKEN, 140n), BOB);
   // Everything from 100 up to but excluding 130 is now final.
   assert.equal(h.store.isFinalAsOf(TOKEN, 100n), true);
   assert.equal(h.store.isFinalAsOf(TOKEN, 129n), true);
@@ -358,11 +357,102 @@ test('a malformed candidate is refused before anything is written', () => {
   const bad = [
     { ...entry({ version: 1n, holder: 'not-an-address', effectiveAt: 100n, recordCommitment: commitment(1) }) },
     { ...entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: 'nope' }) },
-    { ...entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1), registryReference: '' }) },
-    { ...entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: ZERO_COMMITMENT }) },
+    { ...entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1), registryReference: 'not-bytes32' }) },
+    { ...entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: ZERO_BYTES32 }) },
   ];
   for (const candidate of bad) {
     rejects('MALFORMED_ENTRY', () => admit(h, TOKEN, candidate));
   }
   assert.equal(h.store.entryCount(TOKEN), 0);
+});
+
+// The four projection invariants as the standard states them, including the
+// two this implementation originally got wrong by following a repository
+// document instead of the standard.
+
+test('invariant 1: the first entry is version 1 with a zero previousCommitment', () => {
+  const h = harness();
+  rejects('NON_CONSECUTIVE_VERSION', () =>
+    admit(h, TOKEN, entry({ version: 2n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) })));
+  rejects('NON_CONSECUTIVE_VERSION', () =>
+    admit(h, TOKEN, entry({ version: 0n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) })));
+  rejects('BROKEN_COMMITMENT_LINKAGE', () =>
+    admit(h, TOKEN, entry({
+      version: 1n, holder: ALICE, effectiveAt: 100n,
+      recordCommitment: commitment(1), previousCommitment: commitment(9),
+    })));
+
+  admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
+  assert.equal(h.store.entryCount(TOKEN), 1);
+});
+
+test('invariant 2: admission closes the prior entry with the new effective time', () => {
+  const h = harness();
+  admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
+
+  // The latest entry always carries a zero supersededAt.
+  assert.equal(h.store.entryAt(TOKEN, 1n).supersededAt, 0n);
+
+  admit(h, TOKEN, entry({
+    version: 2n, holder: BOB, effectiveAt: 130n,
+    recordCommitment: commitment(2), previousCommitment: commitment(1),
+  }));
+
+  // The prior entry's interval is closed by the register's effective time,
+  // not by when the chain learned of the change.
+  assert.equal(h.store.entryAt(TOKEN, 1n).supersededAt, 130n);
+  assert.equal(h.store.entryAt(TOKEN, 2n).supersededAt, 0n);
+
+  // Nothing else about the closed entry moved.
+  const first = h.store.entryAt(TOKEN, 1n);
+  assert.equal(first.holder, ALICE);
+  assert.equal(first.effectiveAt, 100n);
+  assert.equal(first.recordCommitment, commitment(1));
+});
+
+test('entryAt is indexed by version, and an unknown version reverts', () => {
+  const h = twoEntries();
+  assert.equal(h.store.entryAt(TOKEN, 1n).holder, ALICE);
+  assert.equal(h.store.entryAt(TOKEN, 2n).holder, BOB);
+  rejects('UNKNOWN_VERSION', () => h.store.entryAt(TOKEN, 0n));
+  rejects('UNKNOWN_VERSION', () => h.store.entryAt(TOKEN, 3n));
+  rejects('UNKNOWN_TOKEN', () => h.store.entryAt(9n, 1n));
+});
+
+test('holderAsOf answers the holder alone', () => {
+  const h = twoEntries();
+  const answer = h.store.holderAsOf(TOKEN, 120n);
+  // Not an object carrying a finality flag: the standard exposes three facts
+  // through three accessors so a consumer cannot mistake which it was given.
+  assert.equal(typeof answer, 'string');
+  assert.equal(answer, ALICE);
+});
+
+test('openGapOf reports the zero word when no gap is open', () => {
+  const h = twoEntries();
+  assert.equal(h.store.openGapOf(TOKEN), ZERO_BYTES32);
+  const opened = h.store.openGap(TOKEN, gap({ settlementId: commitment(0x77) }));
+  assert.equal(h.store.openGapOf(TOKEN), opened.settlementId);
+  assert.equal(h.store.settlement(opened.settlementId).status, 'OPEN');
+});
+
+test('a settlement record keeps its outcome after the gap closes', () => {
+  const h = harness();
+  admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
+
+  const cancelled = h.store.openGap(TOKEN, gap({ settlementId: commitment(0x81) }));
+  h.store.cancelGap(TOKEN);
+  assert.equal(h.store.settlement(cancelled.settlementId).status, 'CANCELLED');
+  assert.equal(h.store.openGapOf(TOKEN), ZERO_BYTES32);
+
+  const admittedGap = h.store.openGap(TOKEN, gap({ settlementId: commitment(0x82) }));
+  admit(h, TOKEN, entry({
+    version: 2n, holder: BOB, effectiveAt: 130n,
+    recordCommitment: commitment(2), previousCommitment: commitment(1),
+  }));
+  assert.equal(h.store.settlement(admittedGap.settlementId).status, 'ADMITTED');
+  assert.equal(h.store.openGapOf(TOKEN), ZERO_BYTES32);
+
+  // An unknown settlement reads as NONE rather than reverting.
+  assert.equal(h.store.settlement(commitment(0xff)).status, 'NONE');
 });

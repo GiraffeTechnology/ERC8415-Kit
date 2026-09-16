@@ -1,6 +1,6 @@
 import { TokenProjection } from './kernel.ts';
 import { reject, ProjectionError } from './errors.ts';
-import type { CandidateEntry, Gap, HolderAnswer, Instant, ProjectionEntry, TokenId } from './types.ts';
+import { ZERO_ADDRESS, ZERO_BYTES32, type Address, type Bytes32, type CandidateEntry, type Instant, type ProjectionEntry, type Settlement, type TokenId } from './types.ts';
 import type { ProofMaterial, ProofProfile, ProofProfileRegistry } from '../proof/profile.ts';
 import type { RemoteChainAdapter } from '../ports.ts';
 
@@ -11,8 +11,10 @@ export interface AdmissionResult {
 }
 
 export interface StoreOptions {
-  readonly registerId: string;
-  readonly verificationProfile: string;
+  /** bytes32, as `registerId()` returns. */
+  readonly registerId: Bytes32;
+  /** bytes32, as `verificationProfile()` returns. */
+  readonly verificationProfile: Bytes32;
   readonly profiles: ProofProfileRegistry;
   readonly adapter: RemoteChainAdapter;
 }
@@ -27,18 +29,19 @@ export interface StoreOptions {
  */
 export class ProjectionStore {
   readonly #projections = new Map<string, TokenProjection>();
-  readonly #gaps = new Map<string, Gap>();
+  readonly #openGaps = new Map<string, Bytes32>();
+  readonly #settlements = new Map<Bytes32, Settlement>();
   readonly #options: StoreOptions;
 
   constructor(options: StoreOptions) {
     this.#options = options;
   }
 
-  get registerId(): string {
+  get registerId(): Bytes32 {
     return this.#options.registerId;
   }
 
-  get verificationProfile(): string {
+  get verificationProfile(): Bytes32 {
     return this.#options.verificationProfile;
   }
 
@@ -50,8 +53,9 @@ export class ProjectionStore {
     return this.#projections.get(key(tokenId))?.length ?? 0;
   }
 
-  entryAt(tokenId: TokenId, index: number): ProjectionEntry {
-    return this.#require(tokenId).entryAt(index);
+  /** By version, as the interface specifies. Reverts for an unknown version. */
+  entryAt(tokenId: TokenId, version: bigint): ProjectionEntry {
+    return this.#require(tokenId).entryAt(version);
   }
 
   currentEntry(tokenId: TokenId): ProjectionEntry {
@@ -66,7 +70,7 @@ export class ProjectionStore {
     return this.#require(tokenId).entryAsOf(instant);
   }
 
-  holderAsOf(tokenId: TokenId, instant: Instant): HolderAnswer {
+  holderAsOf(tokenId: TokenId, instant: Instant): Address {
     return this.#require(tokenId).holderAsOf(instant);
   }
 
@@ -75,8 +79,26 @@ export class ProjectionStore {
     return this.#projections.get(key(tokenId))?.isFinalAsOf(instant) ?? false;
   }
 
-  openGapOf(tokenId: TokenId): Gap | undefined {
-    return this.#gaps.get(key(tokenId));
+  /** The open settlement id for a token, or the zero word if none is open. */
+  openGapOf(tokenId: TokenId): Bytes32 {
+    return this.#openGaps.get(key(tokenId)) ?? ZERO_BYTES32;
+  }
+
+  settlement(settlementId: Bytes32): Settlement {
+    const record = this.#settlements.get(settlementId);
+    if (record === undefined) {
+      return {
+        settlementId,
+        tokenId: 0n,
+        initiator: ZERO_ADDRESS,
+        expectedHolder: ZERO_ADDRESS,
+        snapshotHash: ZERO_BYTES32,
+        openedAt: 0n,
+        deadline: 0n,
+        status: 'NONE',
+      };
+    }
+    return record;
   }
 
   /**
@@ -86,12 +108,14 @@ export class ProjectionStore {
    * transfer. The settlement workflow that drives this is Stage 4; the record
    * lives here because admission has to be able to close it atomically.
    */
-  openGap(tokenId: TokenId, gap: Gap): Gap {
-    if (this.#gaps.has(key(tokenId))) {
+  openGap(tokenId: TokenId, gap: Omit<Settlement, 'status' | 'tokenId'>): Settlement {
+    if (this.#openGaps.has(key(tokenId))) {
       reject('GAP_ALREADY_OPEN', `token ${tokenId} already has an open gap`);
     }
-    this.#gaps.set(key(tokenId), gap);
-    return gap;
+    const record: Settlement = { ...gap, tokenId, status: 'OPEN' };
+    this.#openGaps.set(key(tokenId), record.settlementId);
+    this.#settlements.set(record.settlementId, record);
+    return record;
   }
 
   /**
@@ -100,13 +124,15 @@ export class ProjectionStore {
    * This settles nothing. The projection is unchanged and every instant that
    * was provisional stays provisional.
    */
-  cancelGap(tokenId: TokenId): Gap {
-    const gap = this.#gaps.get(key(tokenId));
-    if (gap === undefined) {
+  cancelGap(tokenId: TokenId): Settlement {
+    const settlementId = this.#openGaps.get(key(tokenId));
+    if (settlementId === undefined) {
       return reject('NO_OPEN_GAP', `token ${tokenId} has no open gap`);
     }
-    this.#gaps.delete(key(tokenId));
-    return gap;
+    const cancelled: Settlement = { ...this.settlement(settlementId), status: 'CANCELLED' };
+    this.#openGaps.delete(key(tokenId));
+    this.#settlements.set(settlementId, cancelled);
+    return cancelled;
   }
 
   /**
@@ -133,7 +159,7 @@ export class ProjectionStore {
       );
     }
 
-    const gap = this.#gaps.get(key(tokenId));
+    const openId = this.#openGaps.get(key(tokenId));
     const projection = this.#projections.get(key(tokenId));
     const priorCommitment = projection?.length ? projection.currentEntry().recordCommitment : candidate.previousCommitment;
 
@@ -142,7 +168,7 @@ export class ProjectionStore {
         chainId: adapter.chainId,
         contract: adapter.contract,
         tokenId,
-        settlementId: gap?.settlementId ?? '',
+        settlementId: openId ?? ZERO_BYTES32,
         holder: candidate.holder,
         priorCommitment,
         nextCommitment: candidate.recordCommitment,
@@ -164,7 +190,13 @@ export class ProjectionStore {
     const entry = target.admit(candidate);
     this.#projections.set(key(tokenId), target);
     adapter.advanceHeight(tokenId, material.remoteHeight);
-    const gapClosed = this.#gaps.delete(key(tokenId));
+
+    let gapClosed = false;
+    if (openId !== undefined) {
+      this.#openGaps.delete(key(tokenId));
+      this.#settlements.set(openId, { ...this.settlement(openId), status: 'ADMITTED' });
+      gapClosed = true;
+    }
 
     return { entry, gapClosed, remoteHeight: material.remoteHeight };
   }

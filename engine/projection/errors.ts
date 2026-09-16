@@ -15,7 +15,7 @@ export type ProjectionErrorCode =
   | 'NO_OPEN_GAP'
   | 'UNKNOWN_TOKEN'
   | 'EMPTY_PROJECTION'
-  | 'INDEX_OUT_OF_RANGE'
+  | 'UNKNOWN_VERSION'
   | 'INSTANT_NOT_COVERED';
 
 export class ProjectionError extends Error {

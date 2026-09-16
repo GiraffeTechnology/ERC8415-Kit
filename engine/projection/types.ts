@@ -1,8 +1,10 @@
 /** 0x-prefixed 20-byte hex, lowercase. */
 export type Address = string;
 
-/** 0x-prefixed 32-byte hex, lowercase. */
-export type Commitment = string;
+/** 0x-prefixed 32-byte hex, lowercase. `bytes32` on chain. */
+export type Bytes32 = string;
+
+export type Commitment = Bytes32;
 
 /** Seconds since the Unix epoch, on the same scale as `block.timestamp`. */
 export type Instant = bigint;
@@ -10,56 +12,54 @@ export type Instant = bigint;
 export type TokenId = bigint;
 
 /**
- * One admitted holder entry. An entry's interval runs from its own
- * `effectiveAt` up to, but not including, the next entry's.
+ * One admitted entry, mirroring `IRegisterProjection.RegisterEntry`.
  *
- * Nothing here is mutable after admission: no rewrite, no delete, no
- * retroactive change to `effectiveAt`, commitment or holder.
+ * `supersededAt` is zero on the latest entry and carries the next entry's
+ * `effectiveAt` once one is admitted. It is the only field the standard ever
+ * writes after admission, it is written exactly once, and the interval it
+ * closes is closed by the register — not by the moment the chain learned of
+ * the change.
  */
 export interface ProjectionEntry {
-  readonly version: bigint;
-  readonly holder: Address;
-  readonly effectiveAt: Instant;
   readonly recordCommitment: Commitment;
   readonly previousCommitment: Commitment;
-  readonly registryReference: string;
-}
-
-/** A candidate entry, before admission has accepted it. */
-export type CandidateEntry = ProjectionEntry;
-
-/**
- * The answer to `holderAsOf`. `provisional` is the negation of `isFinalAsOf`
- * at the same instant: a holder can be known while the answer can still move.
- */
-export interface HolderAnswer {
+  readonly registryReference: Bytes32;
   readonly holder: Address;
-  readonly provisional: boolean;
+  readonly version: bigint;
+  readonly effectiveAt: Instant;
+  readonly supersededAt: Instant;
 }
 
-/**
- * A settlement gap: a change is in flight. `openedAt` is the instant from
- * which the token is contested.
- *
- * An open gap never blocks an ERC-721 transfer, and it does not make any
- * instant final or provisional on its own.
- */
-export interface Gap {
+/** What a submitter supplies. `supersededAt` is never submitted. */
+export type CandidateEntry = Omit<ProjectionEntry, 'supersededAt'>;
+
+/** A settlement gap. Mirrors `IProjectionSettlement.Settlement`. */
+export type GapStatus = 'NONE' | 'OPEN' | 'ADMITTED' | 'CANCELLED' | 'SUPERSEDED';
+
+export interface Settlement {
+  readonly settlementId: Bytes32;
+  readonly tokenId: TokenId;
+  readonly initiator: Address;
+  readonly expectedHolder: Address;
+  readonly snapshotHash: Bytes32;
   readonly openedAt: Instant;
-  readonly settlementId: string;
+  readonly deadline: Instant;
+  readonly status: GapStatus;
 }
 
-export const ZERO_COMMITMENT: Commitment = `0x${'0'.repeat(64)}`;
-
+export const ZERO_BYTES32: Bytes32 = `0x${'0'.repeat(64)}`;
+export const ZERO_ADDRESS: Address = `0x${'0'.repeat(40)}`;
+export const FIRST_VERSION = 1n;
 export const UINT64_MAX = (1n << 64n) - 1n;
 
 const ADDRESS = /^0x[0-9a-f]{40}$/;
-const COMMITMENT = /^0x[0-9a-f]{64}$/;
+const BYTES32 = /^0x[0-9a-f]{64}$/;
 
 export const isAddress = (value: unknown): value is Address =>
   typeof value === 'string' && ADDRESS.test(value);
 
-export const isCommitment = (value: unknown): value is Commitment =>
-  typeof value === 'string' && COMMITMENT.test(value);
+export const isBytes32 = (value: unknown): value is Bytes32 =>
+  typeof value === 'string' && BYTES32.test(value);
 
-export const isUint64 = (value: bigint): boolean => value >= 0n && value <= UINT64_MAX;
+export const isUint64 = (value: unknown): value is bigint =>
+  typeof value === 'bigint' && value >= 0n && value <= UINT64_MAX;

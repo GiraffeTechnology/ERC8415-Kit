@@ -1,4 +1,4 @@
-import type { Gap, ProjectionEntry } from '../engine/projection/types.ts';
+import { ZERO_BYTES32, type ProjectionEntry, type Settlement } from '../engine/projection/types.ts';
 
 /**
  * Wire shapes. Every uint64 crosses as a decimal string: an instant, a version
@@ -9,15 +9,24 @@ export const entryJson = (entry: ProjectionEntry) => ({
   version: entry.version.toString(),
   holder: entry.holder,
   effectiveAt: entry.effectiveAt.toString(),
+  supersededAt: entry.supersededAt.toString(),
   recordCommitment: entry.recordCommitment,
   previousCommitment: entry.previousCommitment,
   registryReference: entry.registryReference,
 });
 
-export const gapJson = (gap: Gap) => ({
-  openedAt: gap.openedAt.toString(),
-  settlementId: gap.settlementId,
+export const settlementJson = (record: Settlement) => ({
+  settlementId: record.settlementId,
+  tokenId: record.tokenId.toString(),
+  initiator: record.initiator,
+  expectedHolder: record.expectedHolder,
+  snapshotHash: record.snapshotHash,
+  openedAt: record.openedAt.toString(),
+  deadline: record.deadline.toString(),
+  status: record.status,
 });
+
+export const NO_GAP = ZERO_BYTES32;
 
 const UINT64_MAX = (1n << 64n) - 1n;
 

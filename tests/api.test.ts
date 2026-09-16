@@ -4,7 +4,7 @@ import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { handle } from '../api/routes.ts';
 import { createApi } from '../api/server.ts';
-import { ALICE, BOB, admit, commitment, entry, harness } from './support/fixtures.ts';
+import { ALICE, BOB, REFERENCE, admit, commitment, entry, harness } from './support/fixtures.ts';
 
 const TOKEN = 1n;
 
@@ -25,9 +25,7 @@ test('the temporal routes answer each question separately', () => {
 
   const holder = get(h, '/projection/1/holder/as-of/120');
   assert.equal(holder.status, 200);
-  assert.deepEqual(holder.body, {
-    tokenId: '1', instant: '120', holder: ALICE, provisional: false,
-  });
+  assert.deepEqual(holder.body, { tokenId: '1', instant: '120', holder: ALICE });
 
   const finality = get(h, '/projection/1/finality/as-of/120');
   assert.equal(finality.status, 200);
@@ -75,7 +73,7 @@ test('admission is a POST that returns the admitted entry', () => {
         effectiveAt: '100',
         recordCommitment: commitment(1),
         previousCommitment: `0x${'0'.repeat(64)}`,
-        registryReference: 'registry://test/record',
+        registryReference: REFERENCE,
       },
       proof: { profile: 'test:open', remoteHeight: '5', payload: {} },
     },
@@ -94,7 +92,7 @@ test('a refused admission writes nothing and says why', () => {
       entry: {
         version: '1', holder: ALICE, effectiveAt: '100',
         recordCommitment: commitment(1), previousCommitment: `0x${'0'.repeat(64)}`,
-        registryReference: 'registry://test/record',
+        registryReference: REFERENCE,
       },
       proof: { profile: 'test:closed', remoteHeight: '5', payload: {} },
     },
@@ -144,9 +142,7 @@ test('the server serves the route table over a socket', async () => {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/projection/1/holder/as-of/120`);
     assert.equal(response.status, 200);
-    assert.deepEqual(await response.json(), {
-      tokenId: '1', instant: '120', holder: ALICE, provisional: false,
-    });
+    assert.deepEqual(await response.json(), { tokenId: '1', instant: '120', holder: ALICE });
 
     const admission = await fetch(`http://127.0.0.1:${port}/projection/1/admission`, {
       method: 'POST',
@@ -155,7 +151,7 @@ test('the server serves the route table over a socket', async () => {
         entry: {
           version: '3', holder: BOB, effectiveAt: '200',
           recordCommitment: commitment(3), previousCommitment: commitment(2),
-          registryReference: 'registry://test/record',
+          registryReference: REFERENCE,
         },
         proof: { profile: 'test:open', remoteHeight: '99', payload: {} },
       }),

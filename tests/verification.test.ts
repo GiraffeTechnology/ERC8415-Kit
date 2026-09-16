@@ -6,9 +6,9 @@ import { MerkleProofProfile, merklePath, merkleRoot } from '../engine/proof/merk
 import { MockZkProofProfile } from '../engine/proof/zkProfile.ts';
 import { bindingDigest } from '../engine/proof/binding.ts';
 import { MemoryChainAdapter } from '../adapters/memory/memoryChain.ts';
-import { ZERO_COMMITMENT, type CandidateEntry } from '../engine/projection/types.ts';
+import { ZERO_BYTES32, type CandidateEntry } from '../engine/projection/types.ts';
 import { ProjectionError } from '../engine/projection/errors.ts';
-import { ALICE, BOB, commitment } from './support/fixtures.ts';
+import { ALICE, BOB, REFERENCE, commitment } from './support/fixtures.ts';
 
 const TOKEN = 1n;
 const HEIGHT = 42n;
@@ -19,15 +19,15 @@ const candidate: CandidateEntry = {
   holder: ALICE,
   effectiveAt: 100n,
   recordCommitment: commitment(1),
-  previousCommitment: ZERO_COMMITMENT,
-  registryReference: 'registry://deed/0001',
+  previousCommitment: ZERO_BYTES32,
+  registryReference: REFERENCE,
 };
 
 /**
  * Build a store whose only profiles are the real ones, and publish a state
  * root at HEIGHT containing the binding digest for `entry`.
  */
-const engine = (entry: CandidateEntry = candidate, settlementId = '') => {
+const engine = (entry: CandidateEntry = candidate, settlementId = ZERO_BYTES32) => {
   const adapter = new MemoryChainAdapter();
   const merkle = new MerkleProofProfile(adapter);
   const zk = new MockZkProofProfile(adapter);
@@ -35,7 +35,7 @@ const engine = (entry: CandidateEntry = candidate, settlementId = '') => {
   profiles.register(merkle);
   profiles.register(zk);
   const store = new ProjectionStore({
-    registerId: 'register:land',
+    registerId: commitment(0x8415),
     verificationProfile: merkle.id,
     profiles,
     adapter,
@@ -107,7 +107,7 @@ test('every bound field changes the digest', () => {
     assert.notEqual(bindingDigest(binding, candidate), base);
   }
   // And the entry's own registry reference is bound too.
-  assert.notEqual(bindingDigest(e.context.binding, { ...candidate, registryReference: 'registry://other' }), base);
+  assert.notEqual(bindingDigest(e.context.binding, { ...candidate, registryReference: commitment(0xdead) }), base);
 });
 
 test('a tampered merkle path is refused', () => {
@@ -167,9 +167,8 @@ test('a verified proof is not finality', () => {
 
   // The proof verified and the entry is in history. Nothing about that makes
   // the instant final: only a strictly later admitted entry does.
-  assert.equal(e.store.holderAsOf(TOKEN, 100n).holder, ALICE);
+  assert.equal(e.store.holderAsOf(TOKEN, 100n), ALICE);
   assert.equal(e.store.isFinalAsOf(TOKEN, 100n), false);
-  assert.equal(e.store.holderAsOf(TOKEN, 100n).provisional, true);
 });
 
 test('the verification engine has no mutable asset state machine', () => {

@@ -2,7 +2,7 @@ import { ProjectionError } from '../engine/projection/errors.ts';
 import type { ProjectionStore } from '../engine/projection/store.ts';
 import type { CandidateEntry, ProjectionEntry } from '../engine/projection/types.ts';
 import type { ProofMaterial } from '../engine/proof/profile.ts';
-import { entryJson, gapJson, parseUint64 } from './serialize.ts';
+import { NO_GAP, entryJson, parseUint64, settlementJson } from './serialize.ts';
 
 export interface ApiRequest {
   readonly method: string;
@@ -34,7 +34,7 @@ const STATUS: Record<string, number> = {
   NO_OPEN_GAP: 404,
   UNKNOWN_TOKEN: 404,
   EMPTY_PROJECTION: 404,
-  INDEX_OUT_OF_RANGE: 404,
+  UNKNOWN_VERSION: 404,
   INSTANT_NOT_COVERED: 404,
 };
 
@@ -67,7 +67,7 @@ const route = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
       verificationProfile: store.verificationProfile,
       tokenId: tokenId.toString(),
       entryCount: store.entryCount(tokenId),
-      openGap: gapOrNull(store, tokenId),
+      openGap: openGapJson(store, tokenId),
     });
   }
 
@@ -79,6 +79,12 @@ const route = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
     });
   }
 
+  if (request.method === 'GET' && tail[0] === 'entry' && tail[1] === 'version' && tail.length === 3) {
+    const version = parseUint64(tail[2] ?? '');
+    if (version === undefined) return json(400, { error: 'MALFORMED_VERSION' });
+    return json(200, { tokenId: tokenId.toString(), entry: entryJson(store.entryAt(tokenId, version)) });
+  }
+
   // /entry/as-of/{instant}, /holder/as-of/{instant}, /finality/as-of/{instant}
   if (request.method === 'GET' && tail[1] === 'as-of' && tail.length === 3) {
     const instant = parseUint64(tail[2] ?? '');
@@ -87,15 +93,15 @@ const route = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
     switch (tail[0]) {
       case 'entry':
         return json(200, { tokenId: tokenId.toString(), instant: tail[2], entry: entryJson(store.entryAsOf(tokenId, instant)) });
-      case 'holder': {
-        const answer = store.holderAsOf(tokenId, instant);
+      case 'holder':
+        // The holder, and only the holder. Whether that answer can still move
+        // is a separate question with a separate route, because collapsing
+        // them leaves a consumer guessing which one it was answered.
         return json(200, {
           tokenId: tokenId.toString(),
           instant: tail[2],
-          holder: answer.holder,
-          provisional: answer.provisional,
+          holder: store.holderAsOf(tokenId, instant),
         });
-      }
       case 'finality':
         // Never reverts, and reports the open gap beside the answer without
         // mixing them: a gap does not decide finality either way.
@@ -103,7 +109,7 @@ const route = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
           tokenId: tokenId.toString(),
           instant: tail[2],
           final: store.isFinalAsOf(tokenId, instant),
-          openGap: gapOrNull(store, tokenId),
+          openGap: openGapJson(store, tokenId),
         });
       default:
         return json(404, { error: 'NOT_FOUND' });
@@ -125,9 +131,9 @@ const route = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
   return json(404, { error: 'NOT_FOUND' });
 };
 
-const gapOrNull = (store: ProjectionStore, tokenId: bigint) => {
-  const gap = store.openGapOf(tokenId);
-  return gap === undefined ? null : gapJson(gap);
+const openGapJson = (store: ProjectionStore, tokenId: bigint) => {
+  const settlementId = store.openGapOf(tokenId);
+  return settlementId === NO_GAP ? null : settlementJson(store.settlement(settlementId));
 };
 
 interface ParsedAdmission {
