@@ -118,11 +118,33 @@ core, all fixed in `fix: align the projection core with the ERC interface`:
 the first entry must be version 1; and `registryReference`, `registerId` and
 settlement identifiers are `bytes32`.
 
+## Stage 4 — Settlement Composition Engine
+
+Gap primitives over the projection's settlement records. The canonical gap
+decision is in `docs/GAP-SEMANTICS.md`.
+
+| Requirement | Implementation | Test (`settlement.test.ts`) | Status |
+| --- | --- | --- | --- |
+| Only a settlement authority opens a gap | `engine/settlement/engine.ts` `begin` | only a settlement authority may open a gap | delivered |
+| Authority is separate from token ownership | `engine/settlement/authority.ts` | settlement authority is separate from holding the token | delivered |
+| The deadline is bounded by the settlement period | `engine.ts` `begin` | the deadline is bounded by the settlement period | delivered |
+| At most one open gap per token; ids are never reused | `store.ts` `openGap` | a token has at most one open gap, and an id is never reused | delivered |
+| Admission closes the gap and records the outcome | `engine.ts` `finalize` | admission closes the gap and records the outcome | delivered |
+| Anyone may relay; relaying grants nothing | `engine.ts` `finalize` | anyone may relay a proof, and relaying grants nothing | delivered |
+| An admission must carry the expected holder | `engine.ts` `finalize` | an admission must carry the holder the gap was opened for | delivered |
+| Cancellation is not finality | `engine.ts` `cancel` | cancellation is not finality | delivered |
+| Gap closure by admission is not finality | `kernel.ts` | gap closure by admission is not finality either | delivered |
+| Timeout expiry is not finality, and not an outcome | `engine.ts` `hasExpired` | timeout expiry is not finality, and is not an outcome | delivered |
+| An expired gap cannot be finalized; anyone may clear it | `engine.ts` | an expired gap cannot be finalized but anyone can clear it | delivered |
+| Before the deadline only the initiator may cancel | `engine.ts` `cancel` | before the deadline only the initiator may cancel | delivered |
+| A closed gap cannot be reopened or reclosed | `engine.ts` | a closed gap cannot be reopened, refinalized or recancelled | delivered |
+| No rejection, freeze or override path exists | `engine.ts` | the settlement engine exposes no rejection, freeze or override path | delivered |
+| A gap on one token leaves others alone | `store.ts` | a gap on one token leaves every other token alone | delivered |
+
 ## Not yet delivered
 
 | Stage | Blocking gap |
 | --- | --- |
-| 4 | settlement composition workflow and `docs/GAP-SEMANTICS.md` |
 | 5 | JavaScript and Python SDKs |
 | 6 | institutional console |
 | 7 | production infrastructure |
