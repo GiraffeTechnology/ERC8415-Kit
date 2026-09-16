@@ -141,10 +141,27 @@ decision is in `docs/GAP-SEMANTICS.md`.
 | No rejection, freeze or override path exists | `engine.ts` | the settlement engine exposes no rejection, freeze or override path | delivered |
 | A gap on one token leaves others alone | `store.ts` | a gap on one token leaves every other token alone | delivered |
 
+## Stage 5 — Oracle / Application SDK
+
+| Requirement | Implementation | Test | Status |
+| --- | --- | --- | --- |
+| Three questions stay three calls | `sdk/js/client.ts`, `sdk/python/erc8415/client.py` | `sdk.test.ts` › the SDK answers the three questions as three methods | delivered |
+| No collapsed status accessor exists | `client.ts` | `sdk.test.ts` › the SDK exposes no single collapsed status | delivered |
+| `resolve` returns labelled facts, not a verdict | `client.ts` `resolve` | `sdk.test.ts` › resolve returns three labelled facts, not one verdict | delivered |
+| uint64 decodes as bigint, never number | `client.ts` `decodeEntry` | `sdk.test.ts` › uint64 values decode as bigint, never as number | delivered |
+| Uncovered instant has its own error type | `client.ts` `NotCoveredError` | `sdk.test.ts` › an instant the projection does not cover raises its own error type | delivered |
+| Errors surface with their code | `client.ts` | `sdk.test.ts` › an unknown version surfaces with its code | delivered |
+| An open gap never touches finality | `client.ts`, `kernel.ts` | `sdk.test.ts` › the SDK reports an open gap without letting it touch finality | delivered |
+| The entry walk reads the whole history | `client.ts` `entries` | `sdk.test.ts` › the entry walk reads the whole history | delivered |
+| A Python client with the same guarantees | `sdk/python/` | `sdk.test.ts` › the python SDK suite passes (runs `sdk/python/test_client.py`, 18 checks) | delivered |
+| Examples and API documentation | `sdk/README.md` | — | delivered |
+
+Both SDKs are dependency-free: the JavaScript client uses `fetch`, the Python
+client the standard library only.
+
 ## Not yet delivered
 
 | Stage | Blocking gap |
 | --- | --- |
-| 5 | JavaScript and Python SDKs |
 | 6 | institutional console |
 | 7 | production infrastructure |
