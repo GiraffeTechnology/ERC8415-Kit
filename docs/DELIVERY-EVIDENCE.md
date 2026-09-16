@@ -179,8 +179,21 @@ Read-only over the projection, with roles deciding what is shown.
 | Readable without Web3 knowledge | `render.ts` | the console reads without Web3 vocabulary in the page copy | delivered |
 | Output is escaped | `render.ts` `escape` | page output escapes what it renders | delivered |
 
-## Not yet delivered
+## Stage 7 — Production Infrastructure
 
-| Stage | Blocking gap |
-| --- | --- |
-| 7 | production infrastructure |
+| Requirement | Implementation | Test (`ops.test.ts`) | Status |
+| --- | --- | --- | --- |
+| API keys stored as hashes, compared in constant time | `engine/ops/apiKeys.ts` | an api key is stored only as a hash and verified in constant time | delivered |
+| Revocation takes effect immediately and is idempotent | `apiKeys.ts` `revoke` | a revoked key stops authenticating | delivered |
+| Multi-tenant isolation | `engine/ops/tenants.ts`, `api/gateway.ts` | a tenant cannot read another tenant projection | delivered |
+| Unauthenticated and rejected requests read nothing | `gateway.ts` | an unauthenticated or rejected request reads nothing | delivered |
+| Refusals are metered, not only successes | `gateway.ts` | refusals are metered, not only successes | delivered |
+| Metrics never carry projection data | `engine/ops/metrics.ts` | metrics never carry projection data | delivered |
+| Audit export carries the trail, not the register | `engine/ops/auditExport.ts` | the audit export carries the trail and not the register | delivered |
+| Export is streamable and keeps uint64 exact | `auditExport.ts` `toNdjson` | the export is streamable and keeps uint64 as strings | delivered |
+| An export covers one tenant only | `auditExport.ts` | an export covers one tenant and stops there | delivered |
+
+## All stages delivered
+
+`npm run verify`: 118 tests, including 18 Python checks and the Solidity
+compilation. Nothing in the plan is outstanding.

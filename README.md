@@ -174,6 +174,15 @@ No direct frontend-to-blockchain interaction is allowed.
 
 ## Current Status
 
-Stage 0 — repository and specification foundation. The repository currently
-carries the engineering and semantic documents; module implementation begins at
-Stage 1.
+All eight stages delivered, Stage 0 through Stage 7: the foundation, the
+projection core, the verification engine, the adapter and contracts, the
+settlement composition engine, the SDKs, the institutional console and the
+production infrastructure.
+
+`npm run verify` runs 118 tests, including the twenty mandatory conformance
+tests, the Solidity compilation with both frozen ERC-165 identifiers derived
+from the compiled ABI, and the Python SDK suite. No runtime dependencies.
+
+Per-stage evidence, mapping every invariant to implementation and test name, is
+in [docs/DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md). The delivery report
+is [FINAL-DELIVERY-REPORT.md](FINAL-DELIVERY-REPORT.md).
