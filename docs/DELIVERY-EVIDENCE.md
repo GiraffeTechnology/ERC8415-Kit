@@ -79,11 +79,49 @@ the verifying key, the accepted state root and the admission binding. What it
 exercises for real is non-transferability; a succinct verifier replaces it
 without anything above that file changing.
 
+## Stage 3 — ERC-8415 Adapter
+
+The frozen interfaces, compiled, plus a chain adapter and reader behind the
+ports the engine already used.
+
+| Requirement | Implementation | Test | Status |
+| --- | --- | --- | --- |
+| The contracts compile | `contracts/*.sol` | `contracts.test.ts` › the contracts compile | delivered |
+| `IRegisterProjection` is `0x6309e170` | `contracts/IRegisterProjection.sol` | `contracts.test.ts` › IRegisterProjection computes to the frozen 0x6309e170 | delivered |
+| `IProjectionSettlement` is `0xf4a7d71b` | `contracts/IProjectionSettlement.sol` | `contracts.test.ts` › IProjectionSettlement computes to the frozen 0xf4a7d71b | delivered |
+| The projection interface is exactly seven accessors | — | `contracts.test.ts` › the projection interface declares exactly the seven accessors | delivered |
+| `holderAsOf` returns one value; finality is separate | — | `contracts.test.ts` › holderAsOf returns one value and isFinalAsOf is separate | delivered |
+| `RegisterEntry` carries `supersededAt` | — | `contracts.test.ts` › RegisterEntry carries supersededAt | delivered |
+| No freeze, revoke or override in the settlement interface | — | `contracts.test.ts` › the settlement interface has no freeze, revoke or override | delivered |
+| Hardcoded selectors match the compiled ABI | `adapters/ethereum/abi.ts` | `adapter.test.ts` › the hardcoded selectors match the compiled ABI | delivered |
+| Conformance discovered, not assumed | `adapters/ethereum/projectionReader.ts` | `adapter.test.ts` › conformance is discovered, never assumed | delivered |
+| Every projection accessor decodes | `projectionReader.ts`, `abi.ts` | `adapter.test.ts` › the reader decodes every projection accessor | delivered |
+| A revert surfaces, never becomes a fallback | `projectionReader.ts` | `adapter.test.ts` › a revert surfaces rather than becoming a fallback answer | delivered |
+| Reads pinned to a block tag | `projectionReader.ts` | `adapter.test.ts` › reads are pinned to the finalized head by default | delivered |
+| Calldata encodes as the interface expects | `abi.ts` | `adapter.test.ts` › calldata encodes as the interface expects | delivered |
+| Truncated returndata refused, not padded | `abi.ts` `decodeEntry` | `adapter.test.ts` › a truncated entry blob is refused, not silently padded | delivered |
+| Transaction monitoring tracks the finalized head | `adapters/ethereum/ethereumChain.ts` | `adapter.test.ts` › the chain adapter tracks the finalized head and its state root | delivered |
+| A finalized head that rewinds is refused | `ethereumChain.ts` `refresh` | `adapter.test.ts` › a finalized head that moves backwards is refused | delivered |
+| Chain finality is not projection finality | `ethereumChain.ts`, `kernel.ts` | `adapter.test.ts` › chain finality is not projection finality | delivered |
+| Accepted height never rewinds | `ethereumChain.ts` `advanceHeight` | `adapter.test.ts` › an accepted height never goes backwards | delivered |
+
+`solc` and `ethereum-cryptography` are development dependencies only. The
+adapter ships selectors as constants so the runtime keeps no dependencies, and
+the suite recomputes each one from the compiled ABI.
+
+## Correction applied during Stage 3
+
+Reading the standard's own interfaces showed five divergences in the Stage 1
+core, all fixed in `fix: align the projection core with the ERC interface`:
+`holderAsOf` returns the holder alone; `entryAt` is indexed by version;
+`RegisterEntry` carries `supersededAt`, set on the prior entry at admission;
+the first entry must be version 1; and `registryReference`, `registerId` and
+settlement identifiers are `bytes32`.
+
 ## Not yet delivered
 
 | Stage | Blocking gap |
 | --- | --- |
-| 3 | Solidity contracts and the Ethereum adapter |
 | 4 | settlement composition workflow and `docs/GAP-SEMANTICS.md` |
 | 5 | JavaScript and Python SDKs |
 | 6 | institutional console |
