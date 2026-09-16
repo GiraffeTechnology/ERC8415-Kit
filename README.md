@@ -157,13 +157,18 @@ Stage 7  Production Infrastructure
 
 All implementation follows, in precedence order:
 
-1. [AGENTS.md](AGENTS.md) — product boundary, semantic rules and forbidden inferences;
-2. [docs/ERC8415-Native-Infrastructure-Kit-PRD-v2.1.md](docs/ERC8415-Native-Infrastructure-Kit-PRD-v2.1.md) — product definition and core modules;
-3. [docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md](docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md) — stage delivery and acceptance;
-4. [docs/ERC8415-SEMANTIC-MODEL.md](docs/ERC8415-SEMANTIC-MODEL.md) — the semantic model every module preserves.
+1. the ERC-8415 standard text — its definitions and normative rules;
+2. the consensus reached in the public discussion thread — the positions the
+   thread settled on, not a single draft reply in isolation;
+3. [AGENTS.md](AGENTS.md) — product boundary, semantic rules and forbidden inferences;
+4. [docs/ERC8415-Native-Infrastructure-Kit-PRD-v2.1.md](docs/ERC8415-Native-Infrastructure-Kit-PRD-v2.1.md) — product definition and core modules;
+5. [docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md](docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md) — stage delivery and acceptance;
+6. [docs/ERC8415-SEMANTIC-MODEL.md](docs/ERC8415-SEMANTIC-MODEL.md) — the semantic model every module preserves.
 
-The ERC itself is the source of truth above all four. Where this repository and
-the ERC disagree, the ERC wins and this repository gets fixed.
+Where this repository and the standard disagree, the standard wins and this
+repository gets fixed. These five documents are the whole specification; the
+earlier task documents that described a mutable institutional asset registry
+have been removed.
 
 No direct frontend-to-blockchain interaction is allowed.
 

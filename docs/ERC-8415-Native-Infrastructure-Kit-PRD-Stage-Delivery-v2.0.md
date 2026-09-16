@@ -213,29 +213,103 @@ ERC-8415 Native Infrastructure Kit
 
 # Delivery Stages
 
+This is the only stage scheme in the repository.
+
 ## Stage 0
-Foundation
+Foundation.
+
+Create the repository structure, the development environment definition and the
+initial CI configuration:
+
+```
+api/
+engine/
+adapters/
+contracts/
+console/
+sdk/
+tests/
+docker/
+```
 
 ## Stage 1
-ERC-8415 Projection Core
+ERC-8415 Projection Core.
+
+Storage for register identity, append-only projection entries and gap records.
+Temporal routes:
+
+```
+GET  /projection/{id}/entry/as-of/{instant}
+GET  /projection/{id}/holder/as-of/{instant}
+GET  /projection/{id}/finality/as-of/{instant}
+GET  /projection/{id}/entries
+POST /projection/{id}/admission
+```
+
+Admission endpoints MUST validate schema, version, `effectiveAt`, commitment
+linkage and proof profile before append-only persistence. No endpoint mutates or
+deletes an admitted entry, and none writes finality.
+
+Acceptance: admission and temporal queries run against a mock adapter without a
+live chain, including the exact later-admission finality rule and a confirming
+entry that finalises an interval without changing the holder.
 
 ## Stage 2
-Verification Engine
+Verification Engine.
+
+Proof verification behind a proof-profile interface, admission evaluation, and
+derived finality queries. There is no mutable asset state machine; the only
+transition is evidence becoming an entry:
+
+```
+Evidence -> Proof Profile -> Admission Evaluation -> Projection Entry
+```
+
+Invalid admissions must fail: non-consecutive versions, equal or backwards
+`effectiveAt`, broken commitment linkage, failed proofs and replays.
 
 ## Stage 3
-ERC-8415 Adapter
+ERC-8415 Adapter.
+
+Solidity contracts, an Ethereum adapter and transaction monitoring, exposing the
+frozen interfaces and nothing beyond them:
+
+```
+holderAsOf() / entryAsOf() / isFinalAsOf()
+currentEntry() / entryAt() / entryCount()
+registerId() / openGapOf() / openedAt()
+beginSettlement() / finalizeSettlement() / cancelSettlement()
+```
+
+No freeze, revoke, override or rollback function exists.
 
 ## Stage 4
-Settlement Composition Engine MVP
+Settlement Composition Engine MVP.
+
+Gap primitives: open a gap, close it by admission, close it by cancellation.
+Prove that cancellation, gap closure, proof verification and timeout expiry each
+fail to produce finality.
 
 ## Stage 5
-Oracle/Application SDK
+Oracle/Application SDK.
+
+JavaScript and Python SDKs exposing `entryAsOf`, `holderAsOf` and `isFinalAsOf`
+directly, preserving provisional/final semantics in the return types, with
+examples and API documentation.
 
 ## Stage 6
-Institutional Console
+Institutional Console.
+
+Login, projection overview showing the tradeable position and the confirmed
+holder as separate facts, an audit timeline over admitted entries and gap
+transitions, and permission management. Users read a projection without Web3
+knowledge. The console MUST NOT merge the three signals into one status, and
+MUST NOT display register contents.
 
 ## Stage 7
-Production Infrastructure
+Production Infrastructure.
+
+API key management, RBAC, multi-tenancy, monitoring and audit export.
 
 ---
 
@@ -259,6 +333,10 @@ Required:
 
 - gap open, admission and cancellation paths, with cancellation leaving
   provisional history provisional;
+- unit tests at 80% coverage or above;
+- an integration run of `register identity -> verify proof -> admit entry ->
+  temporal query -> gap open and close -> audit`;
+- a chain test of `deploy contract -> execute transaction -> verify event`;
 - projection consumption through temporal queries;
 - finality-aware workflow, where finality is read from `isFinalAsOf` and never
   recomputed or inferred;

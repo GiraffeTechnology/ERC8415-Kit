@@ -2,16 +2,21 @@
 
 ## Repository Execution Rule
 
-The implementing agent MUST use repository-local files only.
+The implementing agent MUST work from the ERC-8415 standard text and this
+repository, and MUST NOT depend on chat context, external archives or a prior
+session's memory.
 
 Required reading order:
 
 1. AGENTS.md
-2. CODEX_TASK.md
-3. CODEX-ITERATION-TASK-v2.1.md
-4. docs/ERC8415-Native-Infrastructure-Kit-PRD-v2.1.md
-5. docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md
-6. docs/ERC8415-SEMANTIC-MODEL.md
+2. docs/ERC8415-Native-Infrastructure-Kit-PRD-v2.1.md
+3. docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md
+4. docs/ERC8415-SEMANTIC-MODEL.md
+5. README.md
+
+These five documents are the whole specification. Earlier task documents that
+described a mutable institutional asset registry have been removed rather than
+patched; nothing in this repository carries their instructions.
 
 ---
 
@@ -43,11 +48,8 @@ text lives.
 ### Canonical stage plan
 
 Stage numbering is `Stage 0` through `Stage 7` as defined in
-`docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md`. The
-lettered `Stage A` through `Stage H` in `CODEX_TASK.md` and
-`CODEX-SEMANTIC-HARDENING-TASK-v2.md` are workstreams executed within that
-plan, not a competing numbering. Any other stage scheme in this repository is
-superseded.
+`docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md`. That is
+the only stage scheme; no other numbering applies.
 
 If requirements are missing:
 
@@ -79,6 +81,9 @@ The Kit is NOT:
 - an adjudicator of legal title, entitlement or remedy.
 
 The Kit MUST consume ERC-8415 semantics, not redefine them.
+
+Any implementation reduced to current owner plus mutable token state plus
+blockchain confirmation is invalid, whatever else it delivers.
 
 ---
 
@@ -158,6 +163,16 @@ Implementation MUST preserve:
 Instants are `uint64` seconds since the Unix epoch, on the same scale as
 `block.timestamp`. Formatted time is a display concern only; every query carries
 the integer.
+
+Preserve the standard-aligned interface shape:
+
+```solidity
+holderAsOf(uint256 tokenId, uint64 instant)
+    returns (address holder, bool provisional);
+
+isFinalAsOf(uint256 tokenId, uint64 instant)
+    returns (bool);
+```
 
 Frozen interface identifiers, neither the Kit's to change or to recompute:
 
@@ -363,7 +378,39 @@ FINISH-NOW
 FREEZE-LATER
 REMOVE
 
-Do not delete completed infrastructure when product positioning evolves.
+Do not delete completed infrastructure when product positioning evolves. A
+document describing a different product is not infrastructure; remove it rather
+than leave it to be followed.
+
+### Execution
+
+The implementing agent is authorised to create files, implement code, install
+dependencies, write tests, update documentation, run local environments and fix
+bugs. It MUST NOT bypass tests, remove security controls, delete approved
+architecture, or expand into unrelated products.
+
+Interfaces alone are not delivery. Implement concrete projection modules that
+enforce append-only admission, consecutive versions, strictly increasing
+`effectiveAt`, commitment linkage, proof-profile admission, and the three
+temporal queries. Keep the optional settlement extension separate from core
+projection semantics.
+
+Implement testable mock proof profiles — a Merkle profile and a zk profile —
+behind a proof-profile interface, so admission can be exercised without a live
+remote chain.
+
+### Git
+
+Each stage: branch, implement, run tests, generate evidence, open a pull
+request. Never push directly to `main`.
+
+Commit format:
+
+```
+feat(stage1): implement projection core api
+feat(stage2): implement verification engine
+feat(stage3): implement ethereum adapter
+```
 
 ---
 
@@ -377,10 +424,72 @@ Each stage requires:
 - evidence;
 - integration validation where applicable.
 
-Tests MUST cover the forbidden inferences above as explicit negative cases,
-including: a token whose `ownerOf` and confirmed holder diverge; a closed gap
-over a non-final instant; a cancelled settlement; a confirming entry that
-finalises an interval without changing the holder; and an instant preceding the
-first entry.
-
 Code completion alone does not equal delivery completion.
+
+### Mandatory conformance tests
+
+Semantic stubs and placeholder tests do not count. Implement at least:
+
+1. append-only history;
+2. consecutive versions;
+3. strict `effectiveAt` ordering;
+4. `holderAsOf` boundaries;
+5. the exact `isFinalAsOf` later-entry rule;
+6. provisional holder;
+7. gap closure does not finalise;
+8. finality independent of gap state;
+9. proof-profile success;
+10. proof-profile failure;
+11. proof replay rejection where required;
+12. commitment chain validation;
+13. historical holder stability while a later admission changes finality;
+14. core works without the settlement extension;
+15. current ERC-721 ownership cannot rewrite a historical projection answer;
+16. a confirming entry admitting the same holder finalises the preceding
+    interval;
+17. an open gap does not block an ERC-721 transfer;
+18. cancellation leaves prior provisional history provisional;
+19. an instant preceding the first entry reverts, while `isFinalAsOf` returns
+    false there without reverting;
+20. per-token commitment uniqueness holds while the same commitment on a
+    different token is admitted.
+
+The suite MUST reject plausible but incorrect ERC-3643 or ERC-721
+implementations, including the assumptions that current owner equals historical
+holder, that transfer confirmation, proof-profile success, block depth, a closed
+gap or the absence of cancellation equals finality, or that the latest stored row
+answers `holderAsOf(t)`.
+
+Shared conformance vectors covering these cases SHOULD be reused across
+contract, API and SDK layers.
+
+### Evidence
+
+Produce, and keep current:
+
+- `docs/GAP-SEMANTICS.md` — the canonical decision on settlement gap versus any
+  evidence or knowledge gap concept, the latter out of scope unless the standard
+  requires it;
+- `docs/DELIVERY-EVIDENCE.md` — every invariant above mapped to implementation
+  file, test file, test name and status;
+- `FINAL-DELIVERY-REPORT.md` — architecture overview, completed stages, test
+  results, deployment and demo instructions.
+
+---
+
+## Completion Gate
+
+Do not declare completion until tests prove, end to end:
+
+1. `holderAsOf(t)`;
+2. `isFinalAsOf(t)`;
+3. provisional/final separation;
+4. canonical gap semantics;
+5. cancellation is not finality;
+6. composable proof-profile admission;
+7. append-only projection history;
+8. a confirming entry finalising an interval without a holder change;
+9. an open gap not blocking transfer;
+10. no rejection, veto or rollback path over an admitted entry;
+11. an executable semantic conformance suite;
+12. ecosystem integration examples.
