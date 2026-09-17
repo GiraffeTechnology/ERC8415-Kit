@@ -33,6 +33,11 @@ def fake_opener(url: str) -> tuple[int, dict]:
     path = url.split("://", 1)[-1].split("/", 1)[-1]
     if path.endswith("/holder/as-of/99") or path.endswith("/entry/as-of/99"):
         return 404, {"error": "INSTANT_NOT_COVERED", "message": "not covered"}
+    if "/resolve/as-of/" in path:
+        instant = int(path.rsplit("/", 1)[-1])
+        if instant < 100:
+            return 404, {"error": "INSTANT_NOT_COVERED"}
+        return 200, {"holder": BOB if instant >= 130 else ALICE, "final": instant < 130, "openGap": None}
     if "/holder/as-of/" in path:
         instant = int(path.rsplit("/", 1)[-1])
         holder = BOB if instant >= 130 else ALICE
@@ -92,7 +97,12 @@ def main() -> int:
     except ProjectionClientError as error:
         check("an unknown version raises with its code", error.code == "UNKNOWN_VERSION")
 
-    resolution = client.resolve(1, 120)
+    calls = []
+    def counting_opener(url):
+        calls.append(url)
+        return fake_opener(url)
+    resolution = ProjectionClient("http://kit.invalid", opener=counting_opener).resolve(1, 120)
+    check("resolve uses one snapshot request", len(calls) == 1 and "/resolve/as-of/" in calls[0])
     check("resolve labels each fact separately", resolution.holder == ALICE and resolution.final is True)
     check("resolve reports no open gap as None", resolution.open_gap is None)
     check(

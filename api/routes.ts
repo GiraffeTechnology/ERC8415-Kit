@@ -106,6 +106,14 @@ const route = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
     if (instant === undefined) return json(400, { error: 'MALFORMED_INSTANT' });
 
     switch (tail[0]) {
+      case 'resolve':
+        // One synchronous store read turn: no admission can interleave these facts.
+        return json(200, {
+          tokenId: tokenId.toString(), instant: tail[2],
+          holder: store.holderAsOf(tokenId, instant),
+          final: store.isFinalAsOf(tokenId, instant),
+          openGap: openGapJson(store, tokenId),
+        });
       case 'entry':
         return json(200, { tokenId: tokenId.toString(), instant: tail[2], entry: entryJson(store.entryAsOf(tokenId, instant)) });
       case 'holder':

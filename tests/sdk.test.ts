@@ -7,6 +7,7 @@ import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { NotCoveredError, ProjectionClient, ProjectionClientError, type HttpLike } from '../sdk/js/index.ts';
+import { handle } from '../api/routes.ts';
 import { gateway } from './support/gateway.ts';
 import { createApi } from '../api/server.ts';
 import { SettlementEngine } from '../engine/settlement/engine.ts';
@@ -195,10 +196,31 @@ except ProjectionClientError as error:
     assert error.status == 401
 client = ProjectionClient(url, api_key=os.environ['KIT_TEST_KEY'])
 assert client.holder_as_of(1, 120) == '${ALICE}'
+assert client.resolve(1, 120).final is True
 print('authenticated')`;
     const { stdout } = await promisify(execFile)('python3', ['-B', '-c', code], {
       cwd: root, env: { ...process.env, KIT_TEST_URL: connection.baseUrl, KIT_TEST_KEY: connection.apiKey },
     });
     assert.match(stdout, /authenticated/);
   });
+});
+
+
+test('resolve takes one snapshot and observes later admissions only on a new call', async () => {
+  const h = harness();
+  admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
+  let calls = 0;
+  const client = new ProjectionClient({ baseUrl: 'https://kit.example', fetch: async (url) => {
+    calls++;
+    const response = handle(h.store, { method: 'GET', path: new URL(url).pathname });
+    if (calls === 1) {
+      admit(h, TOKEN, entry({ version: 2n, holder: BOB, effectiveAt: 130n, recordCommitment: commitment(2), previousCommitment: commitment(1) }));
+      admit(h, TOKEN, entry({ version: 3n, holder: BOB, effectiveAt: 170n, recordCommitment: commitment(3), previousCommitment: commitment(2) }));
+    }
+    return { status: response.status, json: async () => response.body };
+  } });
+  assert.deepEqual(await client.resolve(TOKEN, 150n), { holder: ALICE, final: false, openGap: null });
+  assert.equal(calls, 1);
+  assert.deepEqual(await client.resolve(TOKEN, 150n), { holder: BOB, final: true, openGap: null });
+  await assert.rejects(() => client.resolve(TOKEN, 99n), NotCoveredError);
 });

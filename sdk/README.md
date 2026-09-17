@@ -86,3 +86,8 @@ rather than narrowing it. Do not cache a read across transactions.
 npm test                          # includes the JavaScript SDK against a live server
 python3 sdk/python/test_client.py # the Python suite standalone
 ```
+
+`resolve` uses one `/projection/{tokenId}/resolve/as-of/{instant}` request,
+returning holder, finality and open gap from one synchronous server snapshot.
+This is a display snapshot, not a guarantee across a subsequent transaction.
+Contracts must still read and act atomically in the same transaction.

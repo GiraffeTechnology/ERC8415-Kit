@@ -121,7 +121,7 @@ export class ProjectionClient {
   }
 
   /**
-   * All three facts in one call, each still labelled as itself.
+   * All three facts from one server snapshot, each still labelled as itself.
    *
    * This is a convenience for a caller that needs all three; it is not a
    * status. `holder` is who was recorded, `final` is whether that can still
@@ -134,12 +134,11 @@ export class ProjectionClient {
     final: boolean;
     openGap: Settlement | null;
   }> {
-    const [holder, final, openGap] = await Promise.all([
-      this.holderAsOf(tokenId, instant),
-      this.isFinalAsOf(tokenId, instant),
-      this.openGapOf(tokenId),
-    ]);
-    return { holder, final, openGap };
+    const body = await this.#get<{ holder: Address; final: boolean; openGap: WireSettlement | null }>(
+      `/projection/${tokenId}/resolve/as-of/${instant}`,
+    );
+    return { holder: body.holder, final: body.final,
+      openGap: body.openGap === null ? null : decodeSettlement(body.openGap) };
   }
 
   async #get<T>(path: string): Promise<T> {

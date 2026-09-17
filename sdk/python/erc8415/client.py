@@ -169,10 +169,11 @@ class ProjectionClient:
         return None if gap is None else Settlement.from_wire(gap)
 
     def resolve(self, token_id: int, instant: int) -> Resolution:
+        body = self._get(f"/projection/{token_id}/resolve/as-of/{instant}")
+        gap = body["openGap"]
         return Resolution(
-            holder=self.holder_as_of(token_id, instant),
-            final=self.is_final_as_of(token_id, instant),
-            open_gap=self.open_gap_of(token_id),
+            holder=body["holder"], final=bool(body["final"]),
+            open_gap=None if gap is None else Settlement.from_wire(gap),
         )
 
     def _get(self, path: str) -> dict[str, Any]:
