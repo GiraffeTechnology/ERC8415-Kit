@@ -2,6 +2,10 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { EthereumProjectionReader } from '../adapters/ethereum/projectionReader.ts';
+import { ProjectionStore } from '../engine/projection/store.ts';
+import { ProofProfileRegistry } from '../engine/proof/profile.ts';
+import { MerkleProofProfile } from '../engine/proof/merkleProfile.ts';
+import { bindingDigest, sha256Hex } from '../engine/proof/binding.ts';
 import { EthereumChainAdapter } from '../adapters/ethereum/ethereumChain.ts';
 import { SELECTOR, decodeEntry, encodeCall, words } from '../adapters/ethereum/abi.ts';
 import { FakeNode } from './support/fakeNode.ts';
@@ -33,8 +37,11 @@ const node = () => new FakeNode({
   entries,
   openGap: ZERO_BYTES32,
   supports: ['0x6309e170'],
+  applicationRoot: commitment(0x777),
   finalized: { number: 0x1234n, stateRoot: `0x${'ab'.repeat(32)}` },
 });
+
+const applicationRoot = { contract: `0x${'dd'.repeat(20)}`, callData: '0x12345678' };
 
 const reader = (transport: FakeNode) => new EthereumProjectionReader({ transport, contract: CONTRACT });
 
@@ -125,22 +132,26 @@ test('a truncated entry blob is refused, not silently padded', () => {
   assert.throws(() => decodeEntry('0xabc'), /whole number of words/);
 });
 
-test('the chain adapter tracks the finalized head and its state root', async () => {
+test('the chain adapter reads an application root at the finalized block hash', async () => {
   const transport = node();
-  const chain = new EthereumChainAdapter({ transport, chainId: 1n, contract: CONTRACT });
+  const chain = new EthereumChainAdapter({ transport, chainId: 1n, contract: CONTRACT, applicationRoot });
 
   assert.equal(chain.isFinalized(1n), false);
   const height = await chain.refresh();
   assert.equal(height, 0x1234n);
   assert.equal(chain.isFinalized(0x1234n), true);
   assert.equal(chain.isFinalized(0x1235n), false);
-  assert.equal(chain.stateRootAt(0x1234n), `0x${'ab'.repeat(32)}`);
+  assert.equal(chain.stateRootAt(0x1234n), commitment(0x777));
+  assert.deepEqual(transport.calls.at(-1)?.params, [
+    { to: applicationRoot.contract, data: applicationRoot.callData },
+    { blockHash: commitment(0x1234), requireCanonical: true },
+  ]);
   assert.equal(chain.stateRootAt(0x1230n), undefined);
 });
 
 test('a finalized head that moves backwards is refused', async () => {
   const transport = node();
-  const chain = new EthereumChainAdapter({ transport, chainId: 1n, contract: CONTRACT });
+  const chain = new EthereumChainAdapter({ transport, chainId: 1n, contract: CONTRACT, applicationRoot });
   await chain.refresh();
   transport.set({ finalized: { number: 0x1000n, stateRoot: `0x${'cd'.repeat(32)}` } });
   await assert.rejects(() => chain.refresh(), /moved backwards/);
@@ -149,7 +160,7 @@ test('a finalized head that moves backwards is refused', async () => {
 
 test('chain finality is not projection finality', async () => {
   const transport = node();
-  const chain = new EthereumChainAdapter({ transport, chainId: 1n, contract: CONTRACT });
+  const chain = new EthereumChainAdapter({ transport, chainId: 1n, contract: CONTRACT, applicationRoot });
   await chain.refresh();
 
   // The head is deeply finalized, and the latest interval is still not final:
@@ -159,9 +170,40 @@ test('chain finality is not projection finality', async () => {
 });
 
 test('an accepted height never goes backwards', () => {
-  const chain = new EthereumChainAdapter({ transport: node(), chainId: 1n, contract: CONTRACT });
+  const chain = new EthereumChainAdapter({ transport: node(), chainId: 1n, contract: CONTRACT, applicationRoot });
   chain.advanceHeight(1n, 10n);
   assert.throws(() => chain.advanceHeight(1n, 10n), /must advance/);
   assert.throws(() => chain.advanceHeight(1n, 9n), /must advance/);
   assert.equal(chain.acceptedHeight(1n), 10n);
+});
+
+
+test('the Ethereum application root supports a normal Merkle admission', async () => {
+  const transport = node();
+  const chain = new EthereumChainAdapter({ transport, chainId: 1n, contract: CONTRACT, applicationRoot });
+  const candidate = entries[0]!;
+  const digest = bindingDigest({ chainId: chain.chainId, contract: chain.contract, tokenId: 1n,
+    settlementId: ZERO_BYTES32, snapshotHash: ZERO_BYTES32, holder: candidate.holder,
+    priorCommitment: candidate.previousCommitment, nextCommitment: candidate.recordCommitment,
+    version: candidate.version, effectiveAt: candidate.effectiveAt }, candidate);
+  transport.set({ applicationRoot: digest });
+  await chain.refresh();
+  const profile = new MerkleProofProfile(chain);
+  const profiles = new ProofProfileRegistry();
+  profiles.register(profile, sha256Hex(profile.id));
+  const store = new ProjectionStore({ registerId: commitment(1), verificationProfile: sha256Hex(profile.id), profiles, adapter: chain });
+  store.admit(1n, candidate, { profile: profile.id, remoteHeight: 0x1234n, payload: { path: [] } });
+  assert.equal(store.holderAsOf(1n, 100n), ALICE);
+  assert.equal(store.isFinalAsOf(1n, 100n), false);
+});
+
+test('a failed root read leaves the accepted finalized state unchanged', async () => {
+  const transport = node();
+  const chain = new EthereumChainAdapter({ transport, chainId: 1n, contract: CONTRACT, applicationRoot });
+  await chain.refresh();
+  transport.set({ finalized: { number: 0x1235n, stateRoot: commitment(2) }, applicationRoot: '0x' });
+  await assert.rejects(() => chain.refresh(), /exactly bytes32/);
+  assert.equal(chain.finalizedHeight, 0x1234n);
+  assert.equal(chain.stateRootAt(0x1235n), undefined);
+  assert.equal(chain.stateRootAt(0x1234n), commitment(0x777));
 });

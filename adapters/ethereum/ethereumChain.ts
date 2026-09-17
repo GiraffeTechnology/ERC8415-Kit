@@ -1,11 +1,13 @@
 import type { JsonRpcTransport } from './transport.ts';
 import type { RemoteChainAdapter } from '../../engine/ports.ts';
-import type { TokenId } from '../../engine/projection/types.ts';
+import { isAddress, isBytes32, type TokenId } from '../../engine/projection/types.ts';
 
 export interface EthereumChainOptions {
   readonly transport: JsonRpcTransport;
   readonly chainId: bigint;
   readonly contract: string;
+  /** Trusted application contract/getter returning the SHA-256 admission-tree root. */
+  readonly applicationRoot: { readonly contract: string; readonly callData: string };
 }
 
 /**
@@ -19,12 +21,15 @@ export interface EthereumChainOptions {
  * instant.
  *
  * `refresh` is the monitoring step: it pulls the finalized head and its state
- * root. Callers drive it; nothing here polls on its own.
+ * application root. The configured RPC is trusted; this is not Ethereum MPT
+ * verification. Callers drive it; nothing here polls on its own.
  */
 export class EthereumChainAdapter implements RemoteChainAdapter {
   readonly chainId: bigint;
   readonly contract: string;
   readonly #transport: JsonRpcTransport;
+  readonly #applicationRoot: EthereumChainOptions['applicationRoot'];
+  readonly #hashes = new Map<string, string>();
   readonly #roots = new Map<string, string>();
   readonly #heights = new Map<string, bigint>();
   #finalizedHeight = 0n;
@@ -33,30 +38,46 @@ export class EthereumChainAdapter implements RemoteChainAdapter {
     this.chainId = options.chainId;
     this.contract = options.contract;
     this.#transport = options.transport;
+    if (!isAddress(options.applicationRoot.contract) || !/^0x[0-9a-fA-F]{8}(?:[0-9a-fA-F]{2})*$/.test(options.applicationRoot.callData)) {
+      throw new Error('application root requires a contract address and encoded getter call');
+    }
+    this.#applicationRoot = Object.freeze({ ...options.applicationRoot });
   }
 
   get finalizedHeight(): bigint {
     return this.#finalizedHeight;
   }
 
-  /** Pull the finalized head and record its state root. */
+  /** Read the application root at one canonical finalized block, trusting the RPC. */
   async refresh(): Promise<bigint> {
     const block = await this.#transport.send({ method: 'eth_getBlockByNumber', params: ['finalized', false] });
     if (typeof block !== 'object' || block === null) {
       throw new Error('eth_getBlockByNumber returned no block');
     }
-    const { number, stateRoot } = block as { number?: unknown; stateRoot?: unknown };
-    if (typeof number !== 'string' || typeof stateRoot !== 'string') {
-      throw new Error('finalized block is missing number or stateRoot');
+    const { number, hash } = block as { number?: unknown; hash?: unknown };
+    if (typeof number !== 'string' || !/^0x(?:0|[1-9a-f][0-9a-f]*)$/i.test(number) || !isBytes32(hash)) {
+      throw new Error('finalized block is missing a valid number or hash');
     }
     const height = BigInt(number);
-    // The finalized head never moves backwards. If a node reports that it did,
-    // the honest response is to refuse it rather than accept a rewind.
+    const root = await this.#transport.send({ method: 'eth_call', params: [
+      { to: this.#applicationRoot.contract, data: this.#applicationRoot.callData },
+      { blockHash: hash, requireCanonical: true },
+    ] });
+    if (!isBytes32(root)) throw new Error('application root getter must return exactly bytes32');
+    // Recheck after the asynchronous call: concurrent refreshes cannot rewind state.
     if (height < this.#finalizedHeight) {
       throw new Error(`finalized head moved backwards: ${height} < ${this.#finalizedHeight}`);
     }
+    const key = height.toString();
+    const knownHash = this.#hashes.get(key);
+    const knownRoot = this.#roots.get(key);
+    if ((knownHash !== undefined && knownHash !== hash.toLowerCase()) ||
+        (knownRoot !== undefined && knownRoot !== root.toLowerCase())) {
+      throw new Error('finalized application root changed');
+    }
     this.#finalizedHeight = height;
-    this.#roots.set(height.toString(), stateRoot.toLowerCase());
+    this.#hashes.set(key, hash.toLowerCase());
+    this.#roots.set(key, root.toLowerCase());
     return height;
   }
 

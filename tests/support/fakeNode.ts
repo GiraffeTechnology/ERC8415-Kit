@@ -8,6 +8,7 @@ export interface FakeState {
   readonly openGap: string;
   readonly supports: readonly string[];
   readonly finalized: { number: bigint; stateRoot: string };
+  readonly applicationRoot?: string;
 }
 
 const encodeEntry = (entry: ProjectionEntry): string =>
@@ -43,7 +44,7 @@ export class FakeNode implements JsonRpcTransport {
 
     if (request.method === 'eth_getBlockByNumber') {
       const { number, stateRoot } = this.#state.finalized;
-      return { number: `0x${number.toString(16)}`, stateRoot };
+      return { number: `0x${number.toString(16)}`, stateRoot, hash: `0x${number.toString(16).padStart(64, '0')}` };
     }
 
     if (request.method !== 'eth_call') throw new JsonRpcError(-32601, `unexpected method ${request.method}`);
@@ -59,6 +60,8 @@ export class FakeNode implements JsonRpcTransport {
     const latest = entries.at(-1);
 
     switch (selector) {
+      case '0x12345678':
+        return this.#state.applicationRoot;
       case SELECTOR.registerId:
         return `0x${word(this.#state.registerId)}`;
       case SELECTOR.entryCount:
