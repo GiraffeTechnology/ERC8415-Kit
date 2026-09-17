@@ -1,6 +1,9 @@
 # console/
 
-Stage 6 — institutional console
+`createConsole` requires an `authenticate(request)` function. Integrate a verified
+session or credential provider and return its user identifier, or `undefined`
+for an unauthenticated request. Authentication errors return 401. The directory
+then enforces that subject's role. There is no identity-header fallback.
 
-This directory is created by Stage 0 and filled by the stage named above.
-See `docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md`.
+`handleConsole` is the internal handler; its `user` is an already authenticated
+subject and must never be populated directly from an unverified request field.

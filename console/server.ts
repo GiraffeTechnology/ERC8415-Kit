@@ -1,4 +1,4 @@
-import { createServer, type Server } from 'node:http';
+import { createServer, type Server, type IncomingMessage } from 'node:http';
 import { AccessDenied, type Directory } from '../engine/access/roles.ts';
 import { ProjectionError } from '../engine/projection/errors.ts';
 import { overview, timeline } from './view.ts';
@@ -90,10 +90,24 @@ export const handleConsole = (options: ConsoleOptions, request: ConsoleRequest):
   return text(404, 'not found');
 };
 
-export const createConsole = (options: ConsoleOptions): Server =>
-  createServer((incoming, outgoing) => {
+export interface ConsoleServerOptions extends ConsoleOptions {
+  /** Verify a session or credential and return its subject; never trust a user header. */
+  readonly authenticate: (request: IncomingMessage) => string | undefined | Promise<string | undefined>;
+}
+
+export const createConsole = (options: ConsoleServerOptions): Server => {
+  if (typeof options.authenticate !== 'function') throw new Error('console authentication is required');
+  const authenticate = options.authenticate;
+  return createServer(async (incoming, outgoing) => {
+    let user: string | undefined;
+    try {
+      user = await authenticate(incoming);
+    } catch {
+      outgoing.writeHead(401, { 'content-type': 'text/plain; charset=utf-8' });
+      outgoing.end('sign in required');
+      return;
+    }
     const url = new URL(incoming.url ?? '/', 'http://console.invalid');
-    const user = incoming.headers['x-console-user'];
     const response = handleConsole(options, {
       method: incoming.method ?? 'GET',
       path: url.pathname,
@@ -103,3 +117,4 @@ export const createConsole = (options: ConsoleOptions): Server =>
     outgoing.writeHead(response.status, { 'content-type': response.contentType });
     outgoing.end(response.body);
   });
+};

@@ -1,7 +1,10 @@
+import { once } from 'node:events';
+import type { AddressInfo } from 'node:net';
+import { randomBytes } from 'node:crypto';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { Directory, AccessDenied } from '../engine/access/roles.ts';
-import { handleConsole, type ConsoleOptions } from '../console/server.ts';
+import { createConsole, handleConsole, type ConsoleOptions } from '../console/server.ts';
 import { overview, timeline } from '../console/view.ts';
 import { renderOverview } from '../console/render.ts';
 import { SettlementEngine } from '../engine/settlement/engine.ts';
@@ -202,4 +205,38 @@ test('page output escapes what it renders', () => {
   const page = renderOverview(view);
   assert.ok(!page.includes('<script>'));
   assert.match(page, /&lt;script&gt;/);
+});
+
+
+test('the console transport requires a verified subject before role checks', async () => {
+  const s = scene();
+  const secret = randomBytes(32).toString('hex');
+  const server = createConsole({ ...s.options, authenticate: async (request) =>
+    request.headers.authorization === `Bearer ${secret}` ? VIEWER : undefined });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  try {
+    assert.equal((await fetch(`${url}/token/1`)).status, 401);
+    const headers = { authorization: `Bearer ${secret}` };
+    assert.equal((await fetch(`${url}/token/1`, { headers })).status, 200);
+    assert.equal((await fetch(`${url}/permissions`, { headers })).status, 403);
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+});
+
+test('console authentication failures return a closed response', async () => {
+  const s = scene();
+  const server = createConsole({ ...s.options, authenticate: () => { throw new Error('session service unavailable'); } });
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  try {
+    const response = await fetch(`http://127.0.0.1:${(server.address() as AddressInfo).port}/token/1`);
+    assert.equal(response.status, 401);
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
 });
