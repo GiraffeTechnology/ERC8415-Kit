@@ -93,6 +93,7 @@ test('a token has at most one open gap, and an id is never reused', () => {
   rejects('GAP_ALREADY_OPEN', () => begin(s, { settlementId: commitment(0x5e78) }));
   rejects('SETTLEMENT_EXISTS', () => begin(s, { settlementId: SETTLEMENT }));
 
+  s.clock.advance(3_601n);
   s.engine.cancel(SETTLEMENT, ALICE);
   // The identifier stays spent after the gap closes.
   rejects('SETTLEMENT_EXISTS', () => begin(s, { settlementId: SETTLEMENT }));
@@ -139,6 +140,7 @@ test('cancellation is not finality', () => {
   const finalBefore = s.h.store.isFinalAsOf(TOKEN, 150n);
   const holderBefore = s.h.store.holderAsOf(TOKEN, 150n);
 
+  s.clock.advance(3_601n);
   const cancelled = s.engine.cancel(SETTLEMENT, ALICE, commitment(0xdead));
 
   assert.equal(cancelled.status, 'CANCELLED');
@@ -177,7 +179,7 @@ test('timeout expiry is not finality, and is not an outcome', () => {
   assert.equal(s.h.store.entryCount(TOKEN), 1);
 });
 
-test('an expired gap cannot be finalized but anyone can clear it', () => {
+test('an expired gap can only be cancelled by its initiator', () => {
   const s = scene();
   begin(s, { deadline: s.clock.now() + 10n });
   s.clock.advance(11n);
@@ -186,25 +188,30 @@ test('an expired gap cannot be finalized but anyone can clear it', () => {
     profile: 'test:open', remoteHeight: 500n, payload: {},
   }));
 
-  // A gap nobody can close is worse than one anybody can, so past the
-  // deadline the cancellation is open to any caller.
-  const cancelled = s.engine.cancel(SETTLEMENT, CAROL);
+  rejects('NOT_SETTLEMENT_AUTHORITY', () => s.engine.cancel(SETTLEMENT, CAROL));
+  const cancelled = s.engine.cancel(SETTLEMENT, ALICE);
   assert.equal(cancelled.status, 'CANCELLED');
   assert.equal(s.h.store.isFinalAsOf(TOKEN, 150n), false);
 });
 
-test('before the deadline only the initiator may cancel', () => {
+test('cancellation requires the initiator and a time strictly after the deadline', () => {
   const s = scene();
   begin(s);
   rejects('NOT_SETTLEMENT_AUTHORITY', () => s.engine.cancel(SETTLEMENT, BOB));
   rejects('NOT_SETTLEMENT_AUTHORITY', () => s.engine.cancel(SETTLEMENT, CAROL));
   assert.equal(s.engine.openGapOf(TOKEN), SETTLEMENT);
+  rejects('DEADLINE_OUT_OF_RANGE', () => s.engine.cancel(SETTLEMENT, ALICE));
+  s.clock.advance(3_600n);
+  rejects('DEADLINE_OUT_OF_RANGE', () => s.engine.cancel(SETTLEMENT, ALICE));
+  assert.equal(s.engine.openGapOf(TOKEN), SETTLEMENT);
+  s.clock.advance(1n);
   assert.equal(s.engine.cancel(SETTLEMENT, ALICE).status, 'CANCELLED');
 });
 
 test('a closed gap cannot be reopened, refinalized or recancelled', () => {
   const s = scene();
   begin(s);
+  s.clock.advance(3_601n);
   s.engine.cancel(SETTLEMENT, ALICE);
 
   rejects('NO_OPEN_GAP', () => s.engine.cancel(SETTLEMENT, ALICE));

@@ -146,9 +146,8 @@ export class SettlementEngine {
    * Close a gap without admitting anything.
    *
    * This settles nothing. The projection is untouched, and every instant that
-   * was provisional before is provisional after. The initiator may cancel at
-   * any time; anyone may cancel one that has run past its deadline, because a
-   * gap nobody can close is worse than one anybody can.
+   * was provisional before is provisional after. Only the initiator may cancel,
+   * and only strictly after the deadline.
    */
   cancel(settlementId: Bytes32, caller: Address, _reasonHash: Bytes32 = ZERO_BYTES32): Settlement {
     const record = this.settlement(settlementId);
@@ -156,8 +155,11 @@ export class SettlementEngine {
       reject('NO_OPEN_GAP', `settlement ${settlementId} is not open`);
     }
     const isInitiator = caller.toLowerCase() === record.initiator.toLowerCase();
-    if (!isInitiator && !this.hasExpired(settlementId)) {
-      reject('NOT_SETTLEMENT_AUTHORITY', 'only the initiator may cancel a settlement before its deadline');
+    if (!isInitiator) {
+      reject('NOT_SETTLEMENT_AUTHORITY', 'only the initiator may cancel a settlement');
+    }
+    if (!this.hasExpired(settlementId)) {
+      reject('DEADLINE_OUT_OF_RANGE', 'cancellation requires a time strictly after the deadline');
     }
     return this.#options.store.cancelGap(record.tokenId);
   }
