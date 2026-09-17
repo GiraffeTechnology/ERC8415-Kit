@@ -1,11 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
+import { promisify } from 'node:util';
+import { execFile, execFileSync } from 'node:child_process';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { NotCoveredError, ProjectionClient, ProjectionClientError, type HttpLike } from '../sdk/js/index.ts';
+import { gateway } from './support/gateway.ts';
 import { createApi } from '../api/server.ts';
 import { SettlementEngine } from '../engine/settlement/engine.ts';
 import { AllowListAuthority } from '../engine/settlement/authority.ts';
@@ -15,7 +17,7 @@ const TOKEN = 1n;
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 /** Run the SDK against the real API over a real socket. */
-const withServer = async (run: (client: ProjectionClient, h: ReturnType<typeof harness>) => Promise<void>) => {
+const withServer = async (run: (client: ProjectionClient, h: ReturnType<typeof harness>, connection: { baseUrl: string; apiKey: string }) => Promise<void>) => {
   const h = harness();
   admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
   admit(h, TOKEN, entry({
@@ -23,12 +25,13 @@ const withServer = async (run: (client: ProjectionClient, h: ReturnType<typeof h
     recordCommitment: commitment(2), previousCommitment: commitment(1),
   }));
 
-  const server = createApi(h.store);
+  const auth = gateway(h.store);
+  const server = createApi(auth.options);
   server.listen(0);
   await once(server, 'listening');
   const { port } = server.address() as AddressInfo;
   try {
-    await run(new ProjectionClient({ baseUrl: `http://127.0.0.1:${port}` }), h);
+    await run(new ProjectionClient({ baseUrl: `http://127.0.0.1:${port}`, apiKey: auth.issued.secret }), h, { baseUrl: `http://127.0.0.1:${port}`, apiKey: auth.issued.secret });
   } finally {
     server.close();
     await once(server, 'close');
@@ -176,4 +179,26 @@ test('the client never retries, so no read is duplicated', async () => {
   // One call, one failure. A retried write could double-submit; this client
   // does not retry at all, so there is nothing to duplicate.
   assert.equal(calls, 1);
+});
+
+
+test('the Python default transport authenticates against the HTTP gateway', async () => {
+  await withServer(async (_client, _h, connection) => {
+    const code = `import os, sys
+sys.path.insert(0, 'sdk/python')
+from erc8415 import ProjectionClient, ProjectionClientError
+url = os.environ['KIT_TEST_URL']
+try:
+    ProjectionClient(url).holder_as_of(1, 120)
+    raise AssertionError('unauthenticated read succeeded')
+except ProjectionClientError as error:
+    assert error.status == 401
+client = ProjectionClient(url, api_key=os.environ['KIT_TEST_KEY'])
+assert client.holder_as_of(1, 120) == '${ALICE}'
+print('authenticated')`;
+    const { stdout } = await promisify(execFile)('python3', ['-B', '-c', code], {
+      cwd: root, env: { ...process.env, KIT_TEST_URL: connection.baseUrl, KIT_TEST_KEY: connection.apiKey },
+    });
+    assert.match(stdout, /authenticated/);
+  });
 });

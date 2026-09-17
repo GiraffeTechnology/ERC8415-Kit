@@ -1,6 +1,5 @@
 import { createServer, type Server } from 'node:http';
-import { handle, type ApiRequest } from './routes.ts';
-import type { ProjectionStore } from '../engine/projection/store.ts';
+import { handleGateway, type GatewayOptions, type GatewayRequest } from './gateway.ts';
 
 /**
  * Requests are bounded before they are parsed, so an oversized body is
@@ -14,7 +13,7 @@ export const DEFAULT_BODY_LIMIT = 64 * 1024;
  * decision live in routes.ts, so the same behaviour is exercised by the suite
  * without a socket.
  */
-export const createApi = (store: ProjectionStore, bodyLimit = DEFAULT_BODY_LIMIT): Server =>
+export const createApi = (options: GatewayOptions, bodyLimit = DEFAULT_BODY_LIMIT): Server =>
   createServer((incoming, outgoing) => {
     const chunks: Buffer[] = [];
     let size = 0;
@@ -48,15 +47,20 @@ export const createApi = (store: ProjectionStore, bodyLimit = DEFAULT_BODY_LIMIT
       }
 
       const url = new URL(incoming.url ?? '/', 'http://api.invalid');
-      const request: ApiRequest = {
+      const request: GatewayRequest = {
         method: incoming.method ?? 'GET',
         path: url.pathname,
         query: Object.fromEntries(url.searchParams),
+        ...(bearer(incoming.headers.authorization) === undefined ? {} : { apiKey: bearer(incoming.headers.authorization)! }),
         ...(body === undefined ? {} : { body }),
       };
 
-      const response = handle(store, request);
+      const response = handleGateway(options, request);
       outgoing.writeHead(response.status, { 'content-type': 'application/json' });
       outgoing.end(JSON.stringify(response.body));
     });
   });
+
+/** A single Bearer credential; malformed or absent headers stay unauthenticated. */
+const bearer = (authorization: string | undefined): string | undefined =>
+  authorization?.match(/^Bearer ([^\s,]+)$/i)?.[1];

@@ -6,6 +6,7 @@ export interface HttpLike {
     headers?: Record<string, string>;
     body?: string;
     signal?: AbortSignal;
+    redirect?: 'error';
   }): Promise<{
     status: number;
     json(): Promise<unknown>;
@@ -34,6 +35,7 @@ export class NotCoveredError extends ProjectionClientError {
 
 export interface ClientOptions {
   readonly baseUrl: string;
+  readonly apiKey?: string;
   readonly fetch?: HttpLike;
   /** Per-request timeout. A read that never returns is a read that never fails. */
   readonly timeoutMs?: number;
@@ -68,10 +70,12 @@ const assertSafeBaseUrl = (baseUrl: string): void => {
  */
 export class ProjectionClient {
   readonly #baseUrl: string;
+  readonly #apiKey: string | undefined;
   readonly #fetch: HttpLike;
   readonly #timeoutMs: number;
 
   constructor(options: ClientOptions) {
+    this.#apiKey = options.apiKey;
     assertSafeBaseUrl(options.baseUrl);
     this.#baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.#fetch = options.fetch ?? (globalThis.fetch as unknown as HttpLike);
@@ -143,6 +147,8 @@ export class ProjectionClient {
     // a retry could duplicate, and this client never retries one.
     const response = await this.#fetch(`${this.#baseUrl}${path}`, {
       signal: AbortSignal.timeout(this.#timeoutMs),
+      redirect: 'error',
+      ...(this.#apiKey === undefined ? {} : { headers: { authorization: `Bearer ${this.#apiKey}` } }),
     });
     const body = (await response.json()) as T & { error?: string; message?: string };
     if (response.status >= 400) {

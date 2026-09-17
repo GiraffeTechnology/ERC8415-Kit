@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { handle } from '../api/routes.ts';
+import { gateway } from './support/gateway.ts';
 import { createApi } from '../api/server.ts';
 import { ALICE, BOB, REFERENCE, admit, commitment, entry, harness } from './support/fixtures.ts';
 
@@ -134,19 +135,20 @@ test('a malformed token id or instant is rejected', () => {
 
 test('the server serves the route table over a socket', async () => {
   const h = seeded();
-  const server = createApi(h.store);
+  const auth = gateway(h.store);
+  const server = createApi(auth.options);
   server.listen(0);
   await once(server, 'listening');
   const { port } = server.address() as AddressInfo;
 
   try {
-    const response = await fetch(`http://127.0.0.1:${port}/projection/1/holder/as-of/120`);
+    const response = await fetch(`http://127.0.0.1:${port}/projection/1/holder/as-of/120`, { headers: auth.headers });
     assert.equal(response.status, 200);
     assert.deepEqual(await response.json(), { tokenId: '1', instant: '120', holder: ALICE });
 
     const admission = await fetch(`http://127.0.0.1:${port}/projection/1/admission`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...auth.headers },
       body: JSON.stringify({
         entry: {
           version: '3', holder: BOB, effectiveAt: '200',
@@ -166,7 +168,8 @@ test('the server serves the route table over a socket', async () => {
 
 test('an oversized body is refused before it is buffered', async () => {
   const h = seeded();
-  const server = createApi(h.store, 1024);
+  const auth = gateway(h.store);
+  const server = createApi(auth.options, 1024);
   server.listen(0);
   await once(server, 'listening');
   const { port } = server.address() as AddressInfo;
@@ -174,7 +177,7 @@ test('an oversized body is refused before it is buffered', async () => {
   try {
     const response = await fetch(`http://127.0.0.1:${port}/projection/1/admission`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
+      headers: { 'content-type': 'application/json', ...auth.headers },
       body: JSON.stringify({ padding: 'x'.repeat(4096) }),
     });
     assert.equal(response.status, 413);
@@ -211,5 +214,31 @@ test('a history listing is paged rather than returned whole', () => {
 
   for (const query of [{ limit: '0' }, { limit: '101' }, { offset: '-1' }, { limit: 'all' }]) {
     assert.equal(handle(h.store, { method: 'GET', path: '/projection/1/entries', query }).status, 400);
+  }
+});
+
+
+test('HTTP requests require a current tenant key and meter the selected tenant', async () => {
+  const h = seeded();
+  const auth = gateway(h.store);
+  const other = harness();
+  admit(other, TOKEN, entry({ version: 1n, holder: BOB, effectiveAt: 100n, recordCommitment: commitment(1) }));
+  auth.options.tenants.add('other', other.store);
+  const otherKey = auth.options.keys.issue('other', 'test');
+  const server = createApi(auth.options);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  const url = `http://127.0.0.1:${(server.address() as AddressInfo).port}/projection/1/holder/as-of/120`;
+  try {
+    assert.equal((await fetch(url)).status, 401);
+    assert.equal((await fetch(url, { headers: { authorization: 'Bearer invalid' } })).status, 401);
+    const response = await fetch(url, { headers: { authorization: `Bearer ${otherKey.secret}` } });
+    assert.equal((await response.json() as { holder: string }).holder, BOB);
+    auth.options.keys.revoke(otherKey.record.keyId);
+    assert.equal((await fetch(url, { headers: { authorization: `Bearer ${otherKey.secret}` } })).status, 401);
+    assert.ok(auth.options.metrics.samples().some((sample) => sample.labels['tenant'] === 'other' && sample.labels['outcome'] === 'ok'));
+  } finally {
+    server.close();
+    await once(server, 'close');
   }
 });

@@ -108,10 +108,18 @@ def _assert_safe_base_url(base_url: str) -> None:
         raise ValueError("use https, or http only for a loopback development host")
 
 
-def _default_opener(url: str, timeout: float) -> tuple[int, dict[str, Any]]:
-    request = urllib.request.Request(url, headers={"accept": "application/json"})
+class _NoRedirect(urllib.request.HTTPRedirectHandler):
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise ProjectionClientError(code, "REDIRECT_REFUSED", "authenticated requests do not follow redirects")
+
+
+def _default_opener(url: str, timeout: float, api_key: Optional[str] = None) -> tuple[int, dict[str, Any]]:
+    headers = {"accept": "application/json"}
+    if api_key is not None:
+        headers["authorization"] = f"Bearer {api_key}"
+    request = urllib.request.Request(url, headers=headers)
     try:
-        with urllib.request.urlopen(request, timeout=timeout) as response:
+        with urllib.request.build_opener(_NoRedirect()).open(request, timeout=timeout) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         return error.code, json.loads(error.read().decode("utf-8"))
@@ -123,14 +131,18 @@ class ProjectionClient:
         base_url: str,
         opener: Optional[Opener] = None,
         timeout: float = DEFAULT_TIMEOUT_SECONDS,
+        *,
+        api_key: Optional[str] = None,
     ) -> None:
+        if opener is not None and api_key is not None:
+            raise ValueError("custom openers must handle their own authentication")
         if opener is None:
             _assert_safe_base_url(base_url)
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
         # Reads only. A timeout surfaces rather than being retried: there is no
         # write here that a retry could duplicate.
-        self._open = opener or (lambda url: _default_opener(url, timeout))
+        self._open = opener or (lambda url: _default_opener(url, timeout, api_key))
 
     def holder_as_of(self, token_id: int, instant: int) -> str:
         """The holder the register had confirmed at an instant. Nothing more."""
