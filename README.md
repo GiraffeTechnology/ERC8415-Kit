@@ -191,3 +191,11 @@ from the compiled ABI, and the Python SDK suite. No runtime dependencies.
 Per-stage evidence, mapping every invariant to implementation and test name, is
 in [docs/DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md). The delivery report
 is [FINAL-DELIVERY-REPORT.md](FINAL-DELIVERY-REPORT.md).
+
+## License
+
+[CC0 1.0 Universal (CC0-1.0)](LICENSE).
+
+Except where otherwise noted, the original code and documentation in this
+repository are dedicated to the public domain under CC0 1.0 Universal.
+Third-party components retain their respective licenses.
