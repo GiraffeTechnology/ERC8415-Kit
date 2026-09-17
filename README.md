@@ -179,7 +179,7 @@ projection core, the verification engine, the adapter and contracts, the
 settlement composition engine, the SDKs, the institutional console and the
 production infrastructure.
 
-`npm run verify` runs 118 tests, including the twenty mandatory conformance
+`npm run verify` runs 130 tests, including the twenty mandatory conformance
 tests, the Solidity compilation with both frozen ERC-165 identifiers derived
 from the compiled ABI, and the Python SDK suite. No runtime dependencies.
 

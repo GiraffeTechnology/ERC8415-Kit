@@ -8,7 +8,11 @@ export interface ApiRequest {
   readonly method: string;
   readonly path: string;
   readonly body?: unknown;
+  readonly query?: Readonly<Record<string, string>>;
 }
+
+/** A history can be long; a listing is paged rather than returned whole. */
+export const MAX_PAGE = 100;
 
 export interface ApiResponse {
   readonly status: number;
@@ -77,10 +81,16 @@ const route = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
   }
 
   if (request.method === 'GET' && tail[0] === 'entries' && tail.length === 1) {
+    const page = parsePage(request.query);
+    if (page === undefined) return json(400, { error: 'MALFORMED_PAGE' });
+    const all = store.entries(tokenId);
+    const entries = all.slice(page.offset, page.offset + page.limit);
     return json(200, {
       tokenId: tokenId.toString(),
       entryCount: store.entryCount(tokenId),
-      entries: store.entries(tokenId).map(entryJson),
+      offset: page.offset,
+      limit: page.limit,
+      entries: entries.map(entryJson),
     });
   }
 
@@ -134,6 +144,14 @@ const route = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
   }
 
   return json(404, { error: 'NOT_FOUND' });
+};
+
+const parsePage = (query: Readonly<Record<string, string>> = {}): { offset: number; limit: number } | undefined => {
+  const offset = query['offset'] === undefined ? 0 : Number(query['offset']);
+  const limit = query['limit'] === undefined ? MAX_PAGE : Number(query['limit']);
+  if (!Number.isSafeInteger(offset) || offset < 0) return undefined;
+  if (!Number.isSafeInteger(limit) || limit <= 0 || limit > MAX_PAGE) return undefined;
+  return { offset, limit };
 };
 
 const openGapJson = (store: ProjectionStore, tokenId: bigint) => {

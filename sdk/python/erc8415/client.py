@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass
 from typing import Any, Callable, Optional
@@ -91,19 +92,45 @@ class Resolution:
 Opener = Callable[[str], tuple[int, dict[str, Any]]]
 
 
-def _default_opener(url: str) -> tuple[int, dict[str, Any]]:
+DEFAULT_TIMEOUT_SECONDS = 10.0
+
+
+def _assert_safe_base_url(base_url: str) -> None:
+    """Refuse a URL that would send credentials in clear, or carry them inline.
+
+    Ported from the transport checks in the closed codex/stage5-sdk branch.
+    """
+    parsed = urllib.parse.urlparse(base_url)
+    if parsed.username or parsed.password:
+        raise ValueError("the base URL must not carry embedded credentials")
+    loopback = parsed.hostname in {"localhost", "127.0.0.1", "::1"}
+    if parsed.scheme != "https" and not (parsed.scheme == "http" and loopback):
+        raise ValueError("use https, or http only for a loopback development host")
+
+
+def _default_opener(url: str, timeout: float) -> tuple[int, dict[str, Any]]:
     request = urllib.request.Request(url, headers={"accept": "application/json"})
     try:
-        with urllib.request.urlopen(request) as response:
+        with urllib.request.urlopen(request, timeout=timeout) as response:
             return response.status, json.loads(response.read().decode("utf-8"))
     except urllib.error.HTTPError as error:
         return error.code, json.loads(error.read().decode("utf-8"))
 
 
 class ProjectionClient:
-    def __init__(self, base_url: str, opener: Optional[Opener] = None) -> None:
+    def __init__(
+        self,
+        base_url: str,
+        opener: Optional[Opener] = None,
+        timeout: float = DEFAULT_TIMEOUT_SECONDS,
+    ) -> None:
+        if opener is None:
+            _assert_safe_base_url(base_url)
         self._base_url = base_url.rstrip("/")
-        self._open = opener or _default_opener
+        self._timeout = timeout
+        # Reads only. A timeout surfaces rather than being retried: there is no
+        # write here that a retry could duplicate.
+        self._open = opener or (lambda url: _default_opener(url, timeout))
 
     def holder_as_of(self, token_id: int, instant: int) -> str:
         """The holder the register had confirmed at an instant. Nothing more."""

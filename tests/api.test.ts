@@ -163,3 +163,53 @@ test('the server serves the route table over a socket', async () => {
     await once(server, 'close');
   }
 });
+
+test('an oversized body is refused before it is buffered', async () => {
+  const h = seeded();
+  const server = createApi(h.store, 1024);
+  server.listen(0);
+  await once(server, 'listening');
+  const { port } = server.address() as AddressInfo;
+
+  try {
+    const response = await fetch(`http://127.0.0.1:${port}/projection/1/admission`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ padding: 'x'.repeat(4096) }),
+    });
+    assert.equal(response.status, 413);
+    assert.equal((await response.json() as { error: string }).error, 'BODY_TOO_LARGE');
+    assert.equal(h.store.entryCount(TOKEN), 2);
+  } finally {
+    server.close();
+    await once(server, 'close');
+  }
+});
+
+test('a history listing is paged rather than returned whole', () => {
+  const h = harness();
+  for (let i = 1; i <= 5; i += 1) {
+    admit(h, TOKEN, entry({
+      version: BigInt(i),
+      holder: i % 2 === 0 ? BOB : ALICE,
+      effectiveAt: BigInt(100 * i),
+      recordCommitment: commitment(i),
+      ...(i === 1 ? {} : { previousCommitment: commitment(i - 1) }),
+    }));
+  }
+
+  const page = handle(h.store, { method: 'GET', path: '/projection/1/entries', query: { offset: '1', limit: '2' } });
+  const body = page.body as { entries: { version: string }[]; entryCount: number; offset: number; limit: number };
+  assert.deepEqual(body.entries.map((e) => e.version), ['2', '3']);
+  // The full count is still reported, so a caller knows there is more.
+  assert.equal(body.entryCount, 5);
+  assert.equal(body.offset, 1);
+
+  // Defaults return the head of the history, not everything without bound.
+  const first = handle(h.store, { method: 'GET', path: '/projection/1/entries' }).body as { limit: number };
+  assert.equal(first.limit, 100);
+
+  for (const query of [{ limit: '0' }, { limit: '101' }, { offset: '-1' }, { limit: 'all' }]) {
+    assert.equal(handle(h.store, { method: 'GET', path: '/projection/1/entries', query }).status, 400);
+  }
+});

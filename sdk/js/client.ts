@@ -1,7 +1,12 @@
 import type { Address, Bytes32, Instant, ProjectionEntry, Settlement, TokenId } from '../../engine/projection/types.ts';
 
 export interface HttpLike {
-  (url: string, init?: { method?: string; headers?: Record<string, string>; body?: string }): Promise<{
+  (url: string, init?: {
+    method?: string;
+    headers?: Record<string, string>;
+    body?: string;
+    signal?: AbortSignal;
+  }): Promise<{
     status: number;
     json(): Promise<unknown>;
   }>;
@@ -30,7 +35,28 @@ export class NotCoveredError extends ProjectionClientError {
 export interface ClientOptions {
   readonly baseUrl: string;
   readonly fetch?: HttpLike;
+  /** Per-request timeout. A read that never returns is a read that never fails. */
+  readonly timeoutMs?: number;
 }
+
+export const DEFAULT_TIMEOUT_MS = 10_000;
+
+/**
+ * Refuses a base URL that would send an API key in clear, or one carrying
+ * embedded credentials. Loopback stays allowed for development.
+ *
+ * Ported from the transport checks in the closed codex/stage5-sdk branch.
+ */
+const assertSafeBaseUrl = (baseUrl: string): void => {
+  const url = new URL(baseUrl);
+  if (url.username !== '' || url.password !== '') {
+    throw new Error('the base URL must not carry embedded credentials');
+  }
+  const loopback = ['localhost', '127.0.0.1', '[::1]', '::1'].includes(url.hostname);
+  if (url.protocol !== 'https:' && !(url.protocol === 'http:' && loopback)) {
+    throw new Error('use https, or http only for a loopback development host');
+  }
+};
 
 /**
  * Client for the Kit's projection API.
@@ -43,10 +69,13 @@ export interface ClientOptions {
 export class ProjectionClient {
   readonly #baseUrl: string;
   readonly #fetch: HttpLike;
+  readonly #timeoutMs: number;
 
   constructor(options: ClientOptions) {
+    assertSafeBaseUrl(options.baseUrl);
     this.#baseUrl = options.baseUrl.replace(/\/+$/, '');
     this.#fetch = options.fetch ?? (globalThis.fetch as unknown as HttpLike);
+    this.#timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
   }
 
   /** The holder the register had confirmed at an instant. Nothing more. */
@@ -110,7 +139,11 @@ export class ProjectionClient {
   }
 
   async #get<T>(path: string): Promise<T> {
-    const response = await this.#fetch(`${this.#baseUrl}${path}`);
+    // Reads only, so a timeout is safe to surface: there is no write here that
+    // a retry could duplicate, and this client never retries one.
+    const response = await this.#fetch(`${this.#baseUrl}${path}`, {
+      signal: AbortSignal.timeout(this.#timeoutMs),
+    });
     const body = (await response.json()) as T & { error?: string; message?: string };
     if (response.status >= 400) {
       const code = body.error ?? 'UNKNOWN';

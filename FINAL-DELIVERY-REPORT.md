@@ -86,7 +86,7 @@ this repository, and the repository gets fixed.
 
 ```sh
 npm install
-npm run verify                    # typecheck + 118 tests
+npm run verify                    # typecheck + 130 tests
 python3 sdk/python/test_client.py  # the Python suite standalone
 docker compose -f docker/compose.yaml run --rm kit
 ```
@@ -103,6 +103,16 @@ None at runtime. `typescript`, `@types/node`, `solc` and
 `ethereum-cryptography` are development dependencies; the adapter ships
 function selectors as constants, and the suite recomputes each one from the
 compiled ABI.
+
+## Salvaged from the closed codex stack
+
+The `codex/*` branches implemented a different product - a mutable asset
+registry with stored finality and freeze/revoke authority - and their pull
+requests are closed. Four things in them were right and are carried over, each
+rescoped to the standard and credited in the source: an Ed25519 institutional
+attestation profile, bounded request bodies, paged listings, and SDK transport
+safety (timeouts, no retries, no credential leak). Details in
+`docs/DELIVERY-EVIDENCE.md`.
 
 ## Known limits
 

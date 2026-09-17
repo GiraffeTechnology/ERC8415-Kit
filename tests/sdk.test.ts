@@ -5,7 +5,7 @@ import { once } from 'node:events';
 import type { AddressInfo } from 'node:net';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
-import { NotCoveredError, ProjectionClient, ProjectionClientError } from '../sdk/js/index.ts';
+import { NotCoveredError, ProjectionClient, ProjectionClientError, type HttpLike } from '../sdk/js/index.ts';
 import { createApi } from '../api/server.ts';
 import { SettlementEngine } from '../engine/settlement/engine.ts';
 import { AllowListAuthority } from '../engine/settlement/authority.ts';
@@ -138,4 +138,42 @@ test('the python SDK suite passes', () => {
   const output = execFileSync('python3', ['sdk/python/test_client.py'], { cwd: root, encoding: 'utf8' });
   assert.match(output, /all python sdk checks passed/);
   assert.ok(!output.includes('failed:'), output);
+});
+
+test('the client refuses a base URL that would leak credentials', () => {
+  for (const baseUrl of ['http://kit.example', 'https://user:pass@kit.example', 'http://10.0.0.5:8080']) {
+    assert.throws(() => new ProjectionClient({ baseUrl }), /https|credentials/);
+  }
+  // Loopback over http stays allowed for development.
+  assert.doesNotThrow(() => new ProjectionClient({ baseUrl: 'http://127.0.0.1:8080' }));
+  assert.doesNotThrow(() => new ProjectionClient({ baseUrl: 'https://kit.example' }));
+});
+
+test('a read that never returns fails instead of hanging', async () => {
+  // Resolves only if nothing aborts it, so the assertion is about the signal
+  // the client supplies rather than about timing.
+  const stalled: HttpLike = (_url, init) =>
+    new Promise((resolve, rejectPromise) => {
+      const timer = setTimeout(() => resolve({ status: 200, json: async () => ({ holder: 'x' }) }), 60_000);
+      init?.signal?.addEventListener('abort', () => {
+        clearTimeout(timer);
+        rejectPromise(new Error('aborted by timeout'));
+      }, { once: true });
+    });
+
+  const client = new ProjectionClient({ baseUrl: 'https://kit.example', fetch: stalled, timeoutMs: 25 });
+  await assert.rejects(() => client.holderAsOf(1n, 120n), /aborted by timeout/);
+});
+
+test('the client never retries, so no read is duplicated', async () => {
+  let calls = 0;
+  const counting: HttpLike = async () => {
+    calls += 1;
+    return { status: 500, json: async () => ({ error: 'BOOM' }) };
+  };
+  const client = new ProjectionClient({ baseUrl: 'https://kit.example', fetch: counting });
+  await assert.rejects(() => client.holderAsOf(1n, 120n));
+  // One call, one failure. A retried write could double-submit; this client
+  // does not retry at all, so there is nothing to duplicate.
+  assert.equal(calls, 1);
 });
