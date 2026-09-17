@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+from urllib.parse import urlsplit, parse_qs
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -30,7 +31,8 @@ ENTRIES = [entry(1, ALICE, 100, 130), entry(2, BOB, 130, 0)]
 
 
 def fake_opener(url: str) -> tuple[int, dict]:
-    path = url.split("://", 1)[-1].split("/", 1)[-1]
+    parsed = urlsplit(url)
+    path = parsed.path
     if path.endswith("/holder/as-of/99") or path.endswith("/entry/as-of/99"):
         return 404, {"error": "INSTANT_NOT_COVERED", "message": "not covered"}
     if "/resolve/as-of/" in path:
@@ -56,7 +58,10 @@ def fake_opener(url: str) -> tuple[int, dict]:
         found = ENTRIES[1] if instant >= 130 else ENTRIES[0]
         return 200, {"entry": found}
     if path.endswith("/entries"):
-        return 200, {"entryCount": len(ENTRIES), "entries": ENTRIES}
+        query = parse_qs(parsed.query)
+        offset = int(query.get("offset", [0])[0])
+        limit = int(query.get("limit", [100])[0])
+        return 200, {"entryCount": len(ENTRIES), "offset": offset, "entries": ENTRIES[offset:offset + limit]}
     return 200, {"openGap": None}
 
 

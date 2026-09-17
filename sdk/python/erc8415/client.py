@@ -162,7 +162,23 @@ class ProjectionClient:
         return int(self._get(f"/projection/{token_id}/entries")["entryCount"])
 
     def entries(self, token_id: int) -> list[Entry]:
-        return [Entry.from_wire(item) for item in self._get(f"/projection/{token_id}/entries")["entries"]]
+        entries: list[Entry] = []
+        total: Optional[int] = None
+        while True:
+            offset = len(entries)
+            limit = 100 if total is None else min(100, total - offset)
+            body = self._get(f"/projection/{token_id}/entries?offset={offset}&limit={limit}")
+            count = body.get("entryCount")
+            page = body.get("entries")
+            if type(count) is not int or count < (total or 0) or body.get("offset") != offset or not isinstance(page, list):
+                raise ProjectionClientError(502, "INVALID_PAGE", "invalid history page metadata")
+            if total is None:
+                total = count
+            if len(page) != min(limit, total - offset):
+                raise ProjectionClientError(502, "INVALID_PAGE", "history page is incomplete")
+            entries.extend(Entry.from_wire(item) for item in page)
+            if len(entries) >= total:
+                return entries
 
     def open_gap_of(self, token_id: int) -> Optional[Settlement]:
         gap = self._get(f"/projection/{token_id}")["openGap"]

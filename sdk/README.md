@@ -91,3 +91,8 @@ python3 sdk/python/test_client.py # the Python suite standalone
 returning holder, finality and open gap from one synchronous server snapshot.
 This is a display snapshot, not a guarantee across a subsequent transaction.
 Contracts must still read and act atomically in the same transaction.
+
+`entries` walks all pages up to the count observed on its first request, so
+histories longer than 100 entries are not truncated. Appends after that first
+request are left for the next call. Each page is a separate read; this method
+does not promise an atomic snapshot across pages. Incomplete pages fail explicitly.

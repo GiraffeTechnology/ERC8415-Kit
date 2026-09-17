@@ -110,8 +110,25 @@ export class ProjectionClient {
   }
 
   async entries(tokenId: TokenId): Promise<ProjectionEntry[]> {
-    const body = await this.#get<{ entries: WireEntry[] }>(`/projection/${tokenId}/entries`);
-    return body.entries.map(decodeEntry);
+    const entries: ProjectionEntry[] = [];
+    let total: number | undefined;
+    do {
+      const offset = entries.length;
+      const limit = total === undefined ? 100 : Math.min(100, total - offset);
+      const body = await this.#get<{ entryCount: number; offset: number; entries: WireEntry[] }>(
+        `/projection/${tokenId}/entries?offset=${offset}&limit=${limit}`,
+      );
+      if (!Number.isSafeInteger(body.entryCount) || body.entryCount < (total ?? 0) ||
+          body.offset !== offset || !Array.isArray(body.entries)) {
+        throw new ProjectionClientError(502, 'INVALID_PAGE', 'invalid history page metadata');
+      }
+      total ??= body.entryCount;
+      if (body.entries.length !== Math.min(limit, total - offset)) {
+        throw new ProjectionClientError(502, 'INVALID_PAGE', 'history page is incomplete');
+      }
+      entries.push(...body.entries.map(decodeEntry));
+    } while (entries.length < total);
+    return entries;
   }
 
   /** The open settlement, or null. A contract without settlement conformance has none. */

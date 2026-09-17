@@ -183,8 +183,12 @@ test('the client never retries, so no read is duplicated', async () => {
 });
 
 
-test('the Python default transport authenticates against the HTTP gateway', async () => {
-  await withServer(async (_client, _h, connection) => {
+test('the Python default transport authenticates and reads multi-page history', async () => {
+  await withServer(async (_client, h, connection) => {
+    for (let i = 3; i <= 205; i++) {
+      admit(h, TOKEN, entry({ version: BigInt(i), holder: BOB, effectiveAt: BigInt(100 * i),
+        recordCommitment: commitment(i), previousCommitment: commitment(i - 1) }));
+    }
     const code = `import os, sys
 sys.path.insert(0, 'sdk/python')
 from erc8415 import ProjectionClient, ProjectionClientError
@@ -197,6 +201,8 @@ except ProjectionClientError as error:
 client = ProjectionClient(url, api_key=os.environ['KIT_TEST_KEY'])
 assert client.holder_as_of(1, 120) == '${ALICE}'
 assert client.resolve(1, 120).final is True
+assert [row.version for row in client.entries(1)] == list(range(1, 206))
+assert client.entries(999) == []
 print('authenticated')`;
     const { stdout } = await promisify(execFile)('python3', ['-B', '-c', code], {
       cwd: root, env: { ...process.env, KIT_TEST_URL: connection.baseUrl, KIT_TEST_KEY: connection.apiKey },
@@ -223,4 +229,25 @@ test('resolve takes one snapshot and observes later admissions only on a new cal
   assert.equal(calls, 1);
   assert.deepEqual(await client.resolve(TOKEN, 150n), { holder: BOB, final: true, openGap: null });
   await assert.rejects(() => client.resolve(TOKEN, 99n), NotCoveredError);
+});
+
+
+test('the JS entry walk returns every page and handles an empty history', async () => {
+  await withServer(async (client, h) => {
+    for (let i = 3; i <= 205; i++) {
+      admit(h, TOKEN, entry({ version: BigInt(i), holder: BOB, effectiveAt: BigInt(100 * i),
+        recordCommitment: commitment(i), previousCommitment: commitment(i - 1) }));
+    }
+    assert.deepEqual((await client.entries(TOKEN)).map((row) => row.version),
+      Array.from({ length: 205 }, (_, i) => BigInt(i + 1)));
+    assert.deepEqual(await client.entries(999n), []);
+  });
+});
+
+test('the entry walk fails explicitly if a page ends before the reported count', async () => {
+  const client = new ProjectionClient({ baseUrl: 'https://kit.example', fetch: async () => ({
+    status: 200, json: async () => ({ offset: 0, entryCount: 5, entries: [] }),
+  }) });
+  await assert.rejects(() => client.entries(TOKEN), (error: unknown) =>
+    error instanceof ProjectionClientError && error.code === 'INVALID_PAGE');
 });
