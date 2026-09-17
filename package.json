@@ -1,0 +1,21 @@
+{
+  "name": "erc8415-kit",
+  "version": "0.1.0",
+  "private": true,
+  "description": "ERC-8415 Native Infrastructure Kit - temporal projection infrastructure",
+  "type": "module",
+  "engines": {
+    "node": ">=22.18.0"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "node --test \"tests/**/*.test.ts\"",
+    "verify": "npm run typecheck && npm test"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "ethereum-cryptography": "^3.2.0",
+    "solc": "^0.8.37",
+    "typescript": "^5.9.0"
+  }
+}
