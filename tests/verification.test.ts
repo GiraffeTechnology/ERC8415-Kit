@@ -8,7 +8,7 @@ import { bindingDigest, sha256Hex } from '../engine/proof/binding.ts';
 import { MemoryChainAdapter } from '../adapters/memory/memoryChain.ts';
 import { ZERO_BYTES32, type CandidateEntry } from '../engine/projection/types.ts';
 import { ProjectionError } from '../engine/projection/errors.ts';
-import { ALICE, BOB, REFERENCE, commitment } from './support/fixtures.ts';
+import { ALICE, BOB, REFERENCE, commitment, gap } from './support/fixtures.ts';
 
 const TOKEN = 1n;
 const HEIGHT = 42n;
@@ -46,6 +46,7 @@ const engine = (entry: CandidateEntry = candidate, settlementId = ZERO_BYTES32, 
     contract: adapter.contract,
     tokenId: TOKEN,
     settlementId,
+    snapshotHash: ZERO_BYTES32,
     holder: entry.holder,
     priorCommitment: entry.previousCommitment,
     nextCommitment: entry.recordCommitment,
@@ -97,6 +98,7 @@ test('every bound field changes the digest', () => {
     { ...e.context.binding, contract: `0x${'22'.repeat(20)}` },
     { ...e.context.binding, tokenId: 2n },
     { ...e.context.binding, settlementId: 'settlement:other' },
+    { ...e.context.binding, snapshotHash: commitment(99) },
     { ...e.context.binding, holder: BOB },
     { ...e.context.binding, priorCommitment: commitment(9) },
     { ...e.context.binding, nextCommitment: commitment(9) },
@@ -212,4 +214,18 @@ test('the advertised identity selects a fixed registered verifier', () => {
   assert.equal(calls, 1);
   assert.equal(store.entryCount(TOKEN), 0);
   assert.equal(store.verificationProfile, identity);
+});
+
+
+test('settlement admission uses the recorded snapshot in the binding', () => {
+  const id = commitment(80);
+  const snapshotHash = commitment(81);
+  const e = engine(candidate, id);
+  e.store.openGap(TOKEN, gap({ settlementId: id, snapshotHash, expectedHolder: ALICE }));
+  const digest = bindingDigest({ ...e.context.binding, snapshotHash }, candidate);
+  e.adapter.setStateRoot(HEIGHT, merkleRoot([digest]));
+  const result = e.store.admit(TOKEN, candidate, { profile: e.merkle.id, remoteHeight: HEIGHT, payload: { path: [] } });
+  assert.equal(result.gapClosed, true);
+  assert.equal(e.store.settlement(id).snapshotHash, snapshotHash);
+  assert.equal(e.store.settlement(id).status, 'ADMITTED');
 });

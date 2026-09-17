@@ -13,6 +13,8 @@ export interface AdmissionBinding {
   readonly contract: string;
   readonly tokenId: TokenId;
   readonly settlementId: string;
+  /** Snapshot of the open settlement; zero for projection-only admission. */
+  readonly snapshotHash: Bytes32;
   readonly holder: string;
   readonly priorCommitment: Commitment;
   readonly nextCommitment: Commitment;

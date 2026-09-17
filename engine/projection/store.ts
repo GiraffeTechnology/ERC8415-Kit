@@ -180,6 +180,7 @@ export class ProjectionStore {
         contract: adapter.contract,
         tokenId,
         settlementId: openId ?? ZERO_BYTES32,
+        snapshotHash: openId === undefined ? ZERO_BYTES32 : this.settlement(openId).snapshotHash,
         holder: candidate.holder,
         priorCommitment,
         nextCommitment: candidate.recordCommitment,

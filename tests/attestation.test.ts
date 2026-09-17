@@ -44,7 +44,7 @@ const scene = () => {
   const context = {
     binding: {
       chainId: adapter.chainId, contract: adapter.contract, tokenId: TOKEN,
-      settlementId: ZERO_BYTES32, holder: candidate.holder,
+      settlementId: ZERO_BYTES32, snapshotHash: ZERO_BYTES32, holder: candidate.holder,
       priorCommitment: candidate.previousCommitment, nextCommitment: candidate.recordCommitment,
       version: candidate.version, effectiveAt: candidate.effectiveAt,
     },

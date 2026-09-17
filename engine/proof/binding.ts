@@ -15,11 +15,12 @@ const sha256 = (input: Buffer | string): Buffer => createHash('sha256').update(i
  */
 export const bindingDigest = (binding: AdmissionBinding, candidate: CandidateEntry): string => {
   const fields = [
-    'erc8415/admission/v1',
+    'erc8415/admission/v2',
     binding.chainId.toString(),
     binding.contract.toLowerCase(),
     binding.tokenId.toString(),
-    binding.settlementId,
+    binding.settlementId.toLowerCase(),
+    binding.snapshotHash.toLowerCase(),
     binding.holder.toLowerCase(),
     binding.priorCommitment.toLowerCase(),
     binding.nextCommitment.toLowerCase(),
