@@ -90,8 +90,8 @@ export class SettlementEngine {
     if (!isAddress(request.initiator) || !isAddress(request.expectedHolder)) {
       reject('MALFORMED_ENTRY', 'initiator and expectedHolder must be addresses');
     }
-    if (!isBytes32(request.snapshotHash)) {
-      reject('MALFORMED_ENTRY', 'snapshotHash must be bytes32');
+    if (!isBytes32(request.snapshotHash) || request.snapshotHash === ZERO_BYTES32) {
+      reject('MALFORMED_ENTRY', 'snapshotHash must be a non-zero bytes32');
     }
     if (!isUint64(request.deadline)) {
       reject('MALFORMED_ENTRY', 'deadline must be a uint64');
