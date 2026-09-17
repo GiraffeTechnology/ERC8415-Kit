@@ -219,7 +219,28 @@ update, transfer and settle commands. Those are the mutable asset registry the
 standard forbids, and a test asserts a verified attestation still leaves the
 instant provisional — the property that branch's design could not hold.
 
+## Shared conformance vectors
+
+`conformance/projection-vectors.json` is the authoritative copy of the
+projection truth table — 25 expectations across 7 cases. Downstream
+implementations of the same semantics vendor it with a pinned SHA-256 rather
+than rewriting it, so a disagreement between implementations surfaces as a
+failing vector instead of two suites that each pass while contradicting each
+other.
+
+| Requirement | Implementation | Test |
+| --- | --- | --- |
+| The kernel reproduces every vector | `engine/projection/kernel.ts` | `vectors.test.ts` |
+| An uncovered instant refuses `holderAsOf` while `isFinalAsOf` answers | `kernel.ts` | `vectors.test.ts` › vector empty / single-entry / two-entries |
+| A gap can change no answer | `kernel.ts` holds no gap at all | `vectors.test.ts` › vector gap-does-not-change-finality |
+
+First consumer: `GiraffeTechnology/Oracle`, which runs them against both its
+consumer state machine and its Solidity projection contract. Both had the same
+missing lower bound live simultaneously, each with its own passing tests —
+the failure mode these vectors close.
+
 ## All stages delivered
 
-`npm run verify`: 130 tests, including 18 Python checks and the Solidity
-compilation. Nothing in the plan is outstanding.
+`npm run verify`: 138 tests, including 18 Python checks, the Solidity
+compilation and the shared conformance vectors. Nothing in the plan is
+outstanding.
