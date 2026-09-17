@@ -46,7 +46,8 @@ it.
 
 ## What the Kit does
 
-- **Records both sequences faithfully.** Each holder entry carries a holder
+- **Records the projection in memory.** ERC-721 ownership is supplied by the
+  consuming integration. Each holder entry carries a holder
   address, effective time, record commitment, previous commitment, registry
   reference and version. Versions are consecutive and effective times strictly
   increase. Commitment uniqueness is enforced strictly per token.
@@ -55,8 +56,9 @@ it.
   admission can still change that answer, `openGapOf` and `openedAt` for whether
   a change is in flight, and `currentEntry` / `entryAt` / `entryCount` /
   `entryAsOf` for the append-only entry walk.
-- **Guarantees deterministic auditability.** Every admitted entry and gap
-  transition is visible on chain. Admission is atomic: proof consumption,
+- **Guarantees deterministic auditability.** Admitted entries and gap
+  transitions are available from the in-process store. On-chain deployment
+  remains Stage 3 work. Admission is atomic: proof consumption,
   remote-height advancement, entry admission and gap closure happen together.
 - **Remains non-blocking.** Opening a gap does not freeze ERC-721 transfers.
   Settlement authority is separate from token ownership. Anyone may relay a
@@ -174,12 +176,15 @@ No direct frontend-to-blockchain interaction is allowed.
 
 ## Current Status
 
-All eight stages delivered, Stage 0 through Stage 7: the foundation, the
-projection core, the verification engine, the adapter and contracts, the
-settlement composition engine, the SDKs, the institutional console and the
-production infrastructure.
+The in-process projection engine, proof profiles, settlement primitives,
+authenticated API, SDKs and console components are implemented and tested.
+The full Stage 0–7 delivery gate is **not complete**. Stage 3 has interfaces,
+ABI checks and an RPC adapter tested with a fake node, but no deployed
+projection/settlement contract, transaction submission or event verification.
+Console session-provider integration, durable storage and production deployment
+evidence also remain outstanding.
 
-`npm run verify` runs 138 tests, including the twenty mandatory conformance
+`npm run verify` runs 151 tests, including the twenty mandatory conformance
 tests, the Solidity compilation with both frozen ERC-165 identifiers derived
 from the compiled ABI, and the Python SDK suite. No runtime dependencies.
 

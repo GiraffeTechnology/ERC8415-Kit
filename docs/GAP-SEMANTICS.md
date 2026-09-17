@@ -52,8 +52,9 @@ missing", which is a claim the projection never makes.
 
 A gap past its deadline is **expired**, which is a condition, not an outcome.
 An expired gap is still open, the projection is untouched, and nothing became
-final. It cannot be finalized, and any caller may cancel it — a gap nobody can
-close is worse than one anybody can.
+final. It cannot be finalized. Only the recorded initiator may cancel it,
+and only strictly after the deadline. Cancellation before or at the deadline
+must fail, preserving the window for proof admission.
 
 Expiry is not a timeout that decides against the change. The registrar may
 still have issued the entry; what expired is this settlement's window to carry

@@ -1,7 +1,8 @@
 # Delivery Evidence
 
-Every invariant in `AGENTS.md` mapped to the code that enforces it and the test
-that proves it. A row with no test is not delivered, whatever the code says.
+Evidence for implemented components is mapped below. A passing component test
+does not establish completion of a whole stage or the deployment acceptance
+gate. Documentation rows identify documentation only.
 
 Run `npm run verify` to reproduce.
 
@@ -81,8 +82,12 @@ without anything above that file changing.
 
 ## Stage 3 — ERC-8415 Adapter
 
-The frozen interfaces, compiled, plus a chain adapter and reader behind the
-ports the engine already used.
+Partial delivery: the frozen interfaces compile, and a chain adapter and reader
+are exercised with a fake RPC node. No concrete projection/settlement contract
+is deployed or executed by this suite. Transaction submission, receipt/event
+monitoring and the required deploy → transact → verify-event run are outstanding.
+The application-root adapter trusts the configured RPC and getter; it does not
+verify Ethereum MPT proofs.
 
 | Requirement | Implementation | Test | Status |
 | --- | --- | --- | --- |
@@ -100,7 +105,7 @@ ports the engine already used.
 | Reads pinned to a block tag | `projectionReader.ts` | `adapter.test.ts` › reads are pinned to the finalized head by default | delivered |
 | Calldata encodes as the interface expects | `abi.ts` | `adapter.test.ts` › calldata encodes as the interface expects | delivered |
 | Truncated returndata refused, not padded | `abi.ts` `decodeEntry` | `adapter.test.ts` › a truncated entry blob is refused, not silently padded | delivered |
-| Transaction monitoring tracks the finalized head | `adapters/ethereum/ethereumChain.ts` | `adapter.test.ts` › the chain adapter tracks the finalized head and its state root | delivered |
+| Application-root reads use the finalized block hash | `adapters/ethereum/ethereumChain.ts` | `adapter.test.ts` › the chain adapter reads an application root at the finalized block hash | delivered |
 | A finalized head that rewinds is refused | `ethereumChain.ts` `refresh` | `adapter.test.ts` › a finalized head that moves backwards is refused | delivered |
 | Chain finality is not projection finality | `ethereumChain.ts`, `kernel.ts` | `adapter.test.ts` › chain finality is not projection finality | delivered |
 | Accepted height never rewinds | `ethereumChain.ts` `advanceHeight` | `adapter.test.ts` › an accepted height never goes backwards | delivered |
@@ -135,8 +140,8 @@ decision is in `docs/GAP-SEMANTICS.md`.
 | Cancellation is not finality | `engine.ts` `cancel` | cancellation is not finality | delivered |
 | Gap closure by admission is not finality | `kernel.ts` | gap closure by admission is not finality either | delivered |
 | Timeout expiry is not finality, and not an outcome | `engine.ts` `hasExpired` | timeout expiry is not finality, and is not an outcome | delivered |
-| An expired gap cannot be finalized; anyone may clear it | `engine.ts` | an expired gap cannot be finalized but anyone can clear it | delivered |
-| Before the deadline only the initiator may cancel | `engine.ts` `cancel` | before the deadline only the initiator may cancel | delivered |
+| An expired gap can only be cancelled by its initiator | `engine.ts` | an expired gap can only be cancelled by its initiator | delivered |
+| Cancellation requires initiator identity and elapsed deadline | `engine.ts` `cancel` | cancellation requires the initiator and a time strictly after the deadline | delivered |
 | A closed gap cannot be reopened or reclosed | `engine.ts` | a closed gap cannot be reopened, refinalized or recancelled | delivered |
 | No rejection, freeze or override path exists | `engine.ts` | the settlement engine exposes no rejection, freeze or override path | delivered |
 | A gap on one token leaves others alone | `store.ts` | a gap on one token leaves every other token alone | delivered |
@@ -153,15 +158,17 @@ decision is in `docs/GAP-SEMANTICS.md`.
 | Errors surface with their code | `client.ts` | `sdk.test.ts` › an unknown version surfaces with its code | delivered |
 | An open gap never touches finality | `client.ts`, `kernel.ts` | `sdk.test.ts` › the SDK reports an open gap without letting it touch finality | delivered |
 | The entry walk reads the whole history | `client.ts` `entries` | `sdk.test.ts` › the entry walk reads the whole history | delivered |
-| A Python client with the same guarantees | `sdk/python/` | `sdk.test.ts` › the python SDK suite passes (runs `sdk/python/test_client.py`, 18 checks) | delivered |
-| Examples and API documentation | `sdk/README.md` | — | delivered |
+| A Python client with the same guarantees | `sdk/python/` | `sdk.test.ts` › the python SDK suite passes (runs `sdk/python/test_client.py`) | delivered |
+| Examples and API documentation | `sdk/README.md` | manual review; environment-sourced credentials | documented |
 
 Both SDKs are dependency-free: the JavaScript client uses `fetch`, the Python
 client the standard library only.
 
 ## Stage 6 — Institutional Console
 
-Read-only over the projection, with roles deciding what is shown.
+Read-only over the projection, with a required authentication callback and
+roles deciding what is shown. A deployed session provider/login flow is not
+included; the callback integration is a deployment responsibility.
 
 | Requirement | Implementation | Test (`console.test.ts`) | Status |
 | --- | --- | --- | --- |
@@ -180,6 +187,9 @@ Read-only over the projection, with roles deciding what is shown.
 | Output is escaped | `render.ts` `escape` | page output escapes what it renders | delivered |
 
 ## Stage 7 — Production Infrastructure
+
+In-process components only. Durable stores, operational deployment and recovery
+evidence are not supplied; this is not a production-readiness certification.
 
 | Requirement | Implementation | Test (`ops.test.ts`) | Status |
 | --- | --- | --- | --- |
@@ -239,8 +249,27 @@ consumer state machine and its Solidity projection contract. Both had the same
 missing lower bound live simultaneously, each with its own passing tests —
 the failure mode these vectors close.
 
-## All stages delivered
+## PR #8 correction evidence
 
-`npm run verify`: 138 tests, including 18 Python checks, the Solidity
-compilation and the shared conformance vectors. Nothing in the plan is
-outstanding.
+| Correction | Focused evidence |
+| --- | --- |
+| Initiator-only cancellation strictly after the deadline | `settlement.test.ts` › cancellation requires the initiator and a time strictly after the deadline |
+| Fixed mapping from advertised identity to verifier | `verification.test.ts` › the advertised identity selects a fixed registered verifier |
+| Stored snapshot in the v2 admission binding | `verification.test.ts` › every bound field changes the digest; settlement admission uses the recorded snapshot in the binding |
+| Tenant authentication at the HTTP boundary | `api.test.ts` › HTTP requests require a current tenant key and meter the selected tenant |
+| Verified console identity before role checks | `console.test.ts` › the console transport requires a verified subject before role checks; console authentication failures return a closed response |
+| SHA-256 application root at finalized block hash | `adapter.test.ts` › the Ethereum application root supports a normal Merkle admission; a failed root read leaves the accepted finalized state unchanged |
+| One server snapshot for SDK resolution | `sdk.test.ts` › resolve takes one snapshot and observes later admissions only on a new call |
+| Complete paginated history in both SDKs | `sdk.test.ts` › the JS entry walk returns every page and handles an empty history; the Python default transport authenticates and reads multi-page history |
+| Full uint256 token IDs | `api.test.ts` › token routes preserve uint256 identifiers while instants stay uint64; `sdk.test.ts` › the JS SDK preserves the full uint256 token identifier |
+
+## Verification and outstanding acceptance
+
+`npm run verify`: typecheck and 151 passing Node tests, including the Python SDK
+suite, authenticated loopback integration, Solidity compilation and shared
+conformance vectors. This is local Node 24 validation; CI also targets Node 22.
+
+The full stage plan remains incomplete. Missing evidence includes a deployed
+contract transaction/event run, measured coverage against the plan's 80% target,
+a deployed console session provider and production persistence/recovery. Docker
+and live-chain integration were not exercised during these corrections.

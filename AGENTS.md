@@ -168,7 +168,7 @@ Preserve the standard-aligned interface shape:
 
 ```solidity
 holderAsOf(uint256 tokenId, uint64 instant)
-    returns (address holder, bool provisional);
+    returns (address holder);
 
 isFinalAsOf(uint256 tokenId, uint64 instant)
     returns (bool);

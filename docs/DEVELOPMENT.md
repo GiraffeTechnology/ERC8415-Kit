@@ -4,8 +4,8 @@
 
 Node 22.18 or newer. That is where Node runs TypeScript from source without a
 flag, which is what lets this project ship with no build step. The repository
-has no runtime dependencies; TypeScript and the Node type definitions are the
-only development dependencies.
+has no runtime dependencies; TypeScript, the Node type definitions, solc and ethereum-cryptography are
+development dependencies. Python 3 is needed for the SDK checks.
 
 ## Commands
 
@@ -30,7 +30,7 @@ engine/      Stage 1   projection kernel
              Stage 2   verification engine and proof profiles
              Stage 4   settlement composition
 adapters/    Stage 3   chain abstraction, mock adapter first
-contracts/   Stage 3   Solidity implementing the frozen interfaces
+contracts/   Stage 3   frozen Solidity interfaces and identifier helpers
 sdk/         Stage 5   JavaScript and Python SDKs
 console/     Stage 6   institutional console
 tests/       every stage

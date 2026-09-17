@@ -271,6 +271,9 @@ Invalid admissions must fail: non-consecutive versions, equal or backwards
 ## Stage 3
 ERC-8415 Adapter.
 
+Delivery status: partial. The requirements below remain the acceptance target;
+see `DELIVERY-EVIDENCE.md` for implemented components and missing chain evidence.
+
 Solidity contracts, an Ethereum adapter and transaction monitoring, exposing the
 frozen interfaces and nothing beyond them:
 

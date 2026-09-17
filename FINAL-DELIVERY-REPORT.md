@@ -1,125 +1,75 @@
-# Final Delivery Report
+# Delivery Report
 
-ERC-8415 Native Infrastructure Kit, Stage 0 through Stage 7.
+ERC-8415 Native Infrastructure Kit: implemented components and outstanding
+Stage 0–7 acceptance. This is not a claim that every stage is delivered.
 
-## Architecture
+## Architecture and implemented scope
 
-```
-Wallet / Application
-        |
-      Oracle
-        |
-   SDK (JS / Python)
-        |
-   API gateway  ──  api keys, tenants, metrics
-        |
-   Projection API      Institutional console
-        |                      |
-   Projection kernel  ──  settlement composition
-        |
-   Verification engine (proof profiles)
-        |
-   Adapter layer (memory / Ethereum)
-        |
-Ethereum / L2 / permissioned chains
-```
+JS/Python SDKs read through the authenticated HTTP gateway, which selects one
+tenant's in-process projection store. The console uses a required authentication
+callback and enforces directory roles. Admission verifies a configured proof
+profile before appending an entry and closing an associated gap.
 
-No frontend talks to a chain. The console and the SDKs reach the projection
-through the engine, and only the adapter layer speaks to a node.
+| Stage | Implemented | Remaining evidence or integration |
+| --- | --- | --- |
+| 0 Foundation | repository layout, development container, CI configuration | container execution was not rerun for these corrections |
+| 1 Projection core | in-memory append-only kernel, temporal queries, admission API | durable deployment is outside the current implementation |
+| 2 Verification | Merkle, Ed25519 attestation and explicitly mock zk profiles; pinned verifier and snapshot binding | production succinct verifier remains absent |
+| 3 Adapter | frozen interfaces, ABI/selector checks, RPC reader and application-root adapter | concrete deployed contracts, transaction submission, receipt/event monitoring and deploy → transact → verify-event acceptance |
+| 4 Settlement | authority, bounded deadlines, initiator-only cancellation after expiry | on-chain execution is part of outstanding Stage 3 work |
+| 5 SDK | authenticated JS/Python clients, atomic server resolution and full pagination | HTTP snapshots do not replace same-transaction on-chain reads |
+| 6 Console | authenticated transport boundary, role-gated views and timeline | session provider/login integration and deployed acceptance |
+| 7 Infrastructure | tenant keys, isolation, metrics and audit export primitives | durable storage, deployment and recovery evidence |
 
-## Stages
+## PR #8 corrections
 
-| Stage | Delivered |
-| --- | --- |
-| 0 Foundation | layout, development environment, container, CI on Node 22 and 24 |
-| 1 Projection core | append-only kernel, temporal queries, atomic admission, five routes |
-| 2 Verification engine | bound Merkle profile, mock succinct profile, admission binding digest |
-| 3 Adapter | frozen interfaces compiled, ERC-165 identifiers derived, chain adapter and reader |
-| 4 Settlement composition | gap primitives, authority, deadlines, expiry |
-| 5 SDK | JavaScript and Python clients, examples, documentation |
-| 6 Console | role-gated read access, overview, audit timeline, permissions |
-| 7 Production | API keys, multi-tenancy, metrics, audit export |
+Nine implementation corrections are committed separately: cancellation rules,
+profile pinning, snapshot binding, API authentication, console authentication,
+application-root reads, SDK resolution consistency, history pagination and
+uint256 token identifiers. A separate documentation commit corrects interface
+signatures, examples and delivery claims.
 
-## What the semantics hold to
+Profile registration now explicitly maps a bytes32 verification identity to one
+verifier. Stores capture that mapping at construction. Proof producers must use
+`erc8415/admission/v2`, which includes the open settlement's stored snapshot or
+zero for projection-only admission. Existing v1 proofs must be regenerated.
 
-Three questions stay three answers, at every layer — kernel, API, SDK and
-console alike. There is no accessor anywhere that returns one combined status,
-and tests assert there is none, because a caller handed a single value cannot
-tell which question it was answered.
+`createApi` requires gateway options; clients supply a tenant API key. Both
+default SDK transports refuse redirects. `createConsole` requires a credential
+or session verifier and has no identity-header fallback. Setup is documented in
+`api/README.md`, `console/README.md` and `sdk/README.md`.
 
-Finality is the later-admission rule and nothing else. It is computed on every
-call and never stored. Cancellation, gap closure, proof verification, timeout
-expiry and block depth each have a test asserting they do not produce it.
-
-Current ERC-721 ownership never answers a projection query. The kernel has no
-ownership input at all, so there is no fallback path to take. The console shows
-the tradeable position and the confirmed holder side by side and derives
-neither from the other.
-
-An instant preceding the first entry reverts, and `isFinalAsOf` answers false
-there without reverting.
-
-Commitment uniqueness is per token. The same commitment on another token is
-admitted: cross-token replay belongs to the registrar or the application.
-
-An open gap never blocks anything. There is no lock in the Kit a gap could
-take.
-
-There is no rejection event, no veto, and no rollback of an admitted entry.
-
-The register's contents are never exposed. The chain carries a commitment and a
-locator; reading the register needs entitlement the Kit does not have.
-
-## Correction applied during delivery
-
-Stage 3 read the standard's own interfaces and found five divergences in the
-Stage 1 core, all traceable to a repository document rather than to the
-standard. `holderAsOf` returns the holder alone; `entryAt` is indexed by
-version; `RegisterEntry` carries `supersededAt`, set on the prior entry at
-admission; the first entry must be version 1; and identifiers are `bytes32`.
-The finality rule needed no change.
-
-The precedence rule in `AGENTS.md` is what settled it: the standard outranks
-this repository, and the repository gets fixed.
+`EthereumChainAdapter` requires an application-root contract and getter calldata.
+It reads a SHA-256 admission-tree root at a canonical finalized block hash,
+trusting the configured RPC. It does not interpret Ethereum's block state root
+as this application tree or independently verify MPT/storage proofs.
 
 ## Verification
 
 ```sh
-npm install
-npm run verify                    # typecheck + 130 tests
-python3 sdk/python/test_client.py  # the Python suite standalone
-docker compose -f docker/compose.yaml run --rm kit
+npm ci
+npm run verify                     # typecheck + 151 passing Node tests
+python3 -B sdk/python/test_client.py # standalone Python checks
 ```
 
-CI runs the same steps on Node 22 and 24 for every push and pull request.
+Local validation used Node 24. Tests include authenticated HTTP integration,
+both SDKs reading 205-entry histories, uint256 identifiers, proof binding,
+settlement deadline boundaries, Solidity compilation and conformance vectors.
+The configured CI matrix also runs Node 22; its result must be checked on the PR.
 
-Coverage of the invariants, mapped to implementation file and test name, is in
-`docs/DELIVERY-EVIDENCE.md`. The canonical gap decision is in
-`docs/GAP-SEMANTICS.md`.
+Independent read-only review of the six security boundary corrections found
+no concrete remaining bypass; its SDK quickstart credential omission was fixed.
+Focused regression tests and valid admission/read controls pass. The detailed
+mapping is in `docs/DELIVERY-EVIDENCE.md`.
 
-## Dependencies
+## Limits and outstanding work
 
-None at runtime. `typescript`, `@types/node`, `solc` and
-`ethereum-cryptography` are development dependencies; the adapter ships
-function selectors as constants, and the suite recomputes each one from the
-compiled ABI.
+The stores are in-process, the zk profile is a mock, and adapter integration
+uses a fake RPC node. No live chain, deployed EVM transaction/event flow or
+container run was validated here. The plan's 80% coverage target has not been
+measured. These gaps remain acceptance work; interface compilation and passing
+unit tests do not establish production delivery.
 
-## Salvaged from the closed codex stack
-
-The `codex/*` branches implemented a different product - a mutable asset
-registry with stored finality and freeze/revoke authority - and their pull
-requests are closed. Four things in them were right and are carried over, each
-rescoped to the standard and credited in the source: an Ed25519 institutional
-attestation profile, bounded request bodies, paged listings, and SDK transport
-safety (timeouts, no retries, no credential leak). Details in
-`docs/DELIVERY-EVIDENCE.md`.
-
-## Known limits
-
-The succinct-proof profile is a mock and is documented as one. It exercises
-non-transferability for real — a proof does not carry to another token, entry
-or forgery — and a real verifier replaces it without anything above that file
-changing.
-
-Storage is in-process. Persisting it is a deployment concern and does not
-change any semantics above the port.
+No runtime dependencies were added. TypeScript, Node types, solc and
+ethereum-cryptography remain development dependencies. Finality continues to be
+the later-admission rule; cancellation changes no projection history.

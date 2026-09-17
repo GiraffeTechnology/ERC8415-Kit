@@ -10,7 +10,7 @@ it was answered.
 | Question | Call | Note |
 | --- | --- | --- |
 | Who did the register confirm at instant *t*? | `holderAsOf` / `holder_as_of` | Raises for an instant the projection does not cover. |
-| Can a later admission still change that? | `isFinalAsOf` / `is_final_as_of` | Never raises; answers `false` for an uncovered instant. |
+| Can a later admission still change that? | `isFinalAsOf` / `is_final_as_of` | Answers `false` for an uncovered instant; transport/authentication failures still raise. |
 | Is a change in flight? | `openGapOf` / `open_gap_of` | `null` / `None` when no gap is open, including on a contract without settlement conformance. |
 
 Acting on the holder without reading finality acts for the wrong party when a
@@ -22,7 +22,9 @@ integration error, because the entry resolves either way.
 ```ts
 import { ProjectionClient, NotCoveredError } from './sdk/js/index.ts';
 
-const client = new ProjectionClient({ baseUrl: 'https://kit.example' });
+const apiKey = process.env.KIT_API_KEY;
+if (!apiKey) throw new Error('KIT_API_KEY is required');
+const client = new ProjectionClient({ baseUrl: 'https://kit.example', apiKey });
 
 const holder = await client.holderAsOf(1n, 1_700_000_000n);
 const settled = await client.isFinalAsOf(1n, 1_700_000_000n);
@@ -48,9 +50,10 @@ instant resolves to the wrong entry.
 Standard library only — nothing to install.
 
 ```python
+import os
 from erc8415 import ProjectionClient, NotCoveredError
 
-client = ProjectionClient("https://kit.example")
+client = ProjectionClient("https://kit.example", api_key=os.environ["KIT_API_KEY"])
 
 holder = client.holder_as_of(1, 1_700_000_000)
 settled = client.is_final_as_of(1, 1_700_000_000)
