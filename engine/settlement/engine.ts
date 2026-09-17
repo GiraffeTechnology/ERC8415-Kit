@@ -1,4 +1,4 @@
-import { validateCandidateShape } from '../projection/kernel.ts';
+import { assertSettlementAdmission } from './admission.ts';
 import { reject } from '../projection/errors.ts';
 import type { ProjectionStore, AdmissionResult } from '../projection/store.ts';
 import type { ProofMaterial } from '../proof/profile.ts';
@@ -131,16 +131,7 @@ export class SettlementEngine {
    */
   finalize(settlementId: Bytes32, candidate: CandidateEntry, material: ProofMaterial): AdmissionResult {
     const record = this.settlement(settlementId);
-    if (record.status !== 'OPEN') {
-      reject('NO_OPEN_GAP', `settlement ${settlementId} is not open`);
-    }
-    if (this.hasExpired(settlementId)) {
-      reject('SETTLEMENT_EXPIRED', `settlement ${settlementId} ran past its deadline`);
-    }
-    validateCandidateShape(candidate);
-    if (candidate.holder.toLowerCase() !== record.expectedHolder.toLowerCase()) {
-      reject('HOLDER_MISMATCH', 'the admitted holder is not the one this settlement was opened for');
-    }
+    assertSettlementAdmission(record, candidate, this.#options.clock.now());
     return this.#options.store.admit(record.tokenId, candidate, material);
   }
 

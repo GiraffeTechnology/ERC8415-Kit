@@ -1,3 +1,4 @@
+import type { Clock } from '../engine/ports.ts';
 import { handle, type ApiRequest, type ApiResponse } from './routes.ts';
 import { UnknownTenant, type TenantRegistry } from '../engine/ops/tenants.ts';
 import type { ApiKeyStore } from '../engine/ops/apiKeys.ts';
@@ -7,6 +8,8 @@ export interface GatewayOptions {
   readonly tenants: TenantRegistry;
   readonly keys: ApiKeyStore;
   readonly metrics: Metrics;
+  /** Trusted server time, never derived from the request. Defaults to Unix wall time. */
+  readonly clock?: Clock;
 }
 
 export interface GatewayRequest extends ApiRequest {
@@ -38,7 +41,7 @@ export const handleGateway = (options: GatewayOptions, request: GatewayRequest):
 
   try {
     const store = options.tenants.storeFor(key.tenantId);
-    const response = handle(store, request);
+    const response = handle(store, request, options.clock);
     options.metrics.increment('erc8415_requests_total', {
       tenant: key.tenantId,
       route,

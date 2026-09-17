@@ -1,3 +1,5 @@
+import { assertSettlementAdmission } from '../engine/settlement/admission.ts';
+import type { Clock } from '../engine/ports.ts';
 import { ProjectionError } from '../engine/projection/errors.ts';
 import type { ProjectionStore } from '../engine/projection/store.ts';
 import type { CandidateEntry, ProjectionEntry } from '../engine/projection/types.ts';
@@ -47,9 +49,11 @@ const STATUS: Record<string, number> = {
   INSTANT_NOT_COVERED: 404,
 };
 
-export const handle = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
+const systemClock: Clock = { now: () => BigInt(Math.floor(Date.now() / 1000)) };
+
+export const handle = (store: ProjectionStore, request: ApiRequest, clock: Clock = systemClock): ApiResponse => {
   try {
-    return route(store, request);
+    return route(store, request, clock);
   } catch (error) {
     if (error instanceof ProjectionError) {
       return json(STATUS[error.code] ?? 400, { error: error.code, message: error.message });
@@ -58,7 +62,7 @@ export const handle = (store: ProjectionStore, request: ApiRequest): ApiResponse
   }
 };
 
-const route = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
+const route = (store: ProjectionStore, request: ApiRequest, clock: Clock): ApiResponse => {
   const segments = request.path.split('/').filter((segment) => segment.length > 0);
 
   if (segments[0] !== 'projection') return json(404, { error: 'NOT_FOUND' });
@@ -142,6 +146,10 @@ const route = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
   if (request.method === 'POST' && tail[0] === 'admission' && tail.length === 1) {
     const parsed = parseAdmission(request.body);
     if (parsed === undefined) return json(400, { error: 'MALFORMED_ENTRY', message: 'admission body is not well formed' });
+    const settlementId = store.openGapOf(tokenId);
+    if (settlementId !== NO_GAP) {
+      assertSettlementAdmission(store.settlement(settlementId), parsed.entry, clock.now());
+    }
     const result = store.admit(tokenId, parsed.entry, parsed.proof);
     return json(201, {
       tokenId: tokenId.toString(),
