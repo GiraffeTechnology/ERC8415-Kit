@@ -242,3 +242,23 @@ test('HTTP requests require a current tenant key and meter the selected tenant',
     await once(server, 'close');
   }
 });
+
+
+test('token routes preserve uint256 identifiers while instants stay uint64', () => {
+  const h = harness();
+  for (const tokenId of [0n, 1n << 200n, (1n << 256n) - 1n]) {
+    const candidate = entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) });
+    const response = handle(h.store, { method: 'POST', path: `/projection/${tokenId}/admission`, body: {
+      entry: { ...candidate, version: '1', effectiveAt: '100' },
+      proof: { profile: 'test:open', remoteHeight: '1', payload: {} },
+    } });
+    assert.equal(response.status, 201);
+    assert.deepEqual(get(h, `/projection/${tokenId}/holder/as-of/100`).body,
+      { tokenId: tokenId.toString(), instant: '100', holder: ALICE });
+  }
+  for (const tokenId of ['-1', '01', '1.5', String(1n << 256n)]) {
+    assert.equal(get(h, `/projection/${tokenId}/entries`).status, 400);
+  }
+  assert.equal(get(h, `/projection/0/holder/as-of/${1n << 64n}`).status, 400);
+  assert.equal(get(h, `/projection/0/entry/version/${1n << 64n}`).status, 400);
+});

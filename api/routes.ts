@@ -2,7 +2,7 @@ import { ProjectionError } from '../engine/projection/errors.ts';
 import type { ProjectionStore } from '../engine/projection/store.ts';
 import type { CandidateEntry, ProjectionEntry } from '../engine/projection/types.ts';
 import type { ProofMaterial } from '../engine/proof/profile.ts';
-import { NO_GAP, entryJson, parseUint64, settlementJson } from './serialize.ts';
+import { NO_GAP, entryJson, parseUint64, parseUint256, settlementJson } from './serialize.ts';
 
 export interface ApiRequest {
   readonly method: string;
@@ -65,7 +65,7 @@ const route = (store: ProjectionStore, request: ApiRequest): ApiResponse => {
 
   const tokenRaw = segments[1];
   if (tokenRaw === undefined) return json(404, { error: 'NOT_FOUND' });
-  const tokenId = parseUint64(tokenRaw);
+  const tokenId = parseUint256(tokenRaw);
   if (tokenId === undefined) return json(400, { error: 'MALFORMED_TOKEN_ID' });
 
   const tail = segments.slice(2);
