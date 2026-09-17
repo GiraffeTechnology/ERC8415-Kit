@@ -1,3 +1,4 @@
+import { validateCandidateShape } from '../projection/kernel.ts';
 import { reject } from '../projection/errors.ts';
 import type { ProjectionStore, AdmissionResult } from '../projection/store.ts';
 import type { ProofMaterial } from '../proof/profile.ts';
@@ -136,6 +137,7 @@ export class SettlementEngine {
     if (this.hasExpired(settlementId)) {
       reject('SETTLEMENT_EXPIRED', `settlement ${settlementId} ran past its deadline`);
     }
+    validateCandidateShape(candidate);
     if (candidate.holder.toLowerCase() !== record.expectedHolder.toLowerCase()) {
       reject('HOLDER_MISMATCH', 'the admitted holder is not the one this settlement was opened for');
     }

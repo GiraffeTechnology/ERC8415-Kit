@@ -1,4 +1,4 @@
-import { TokenProjection } from './kernel.ts';
+import { TokenProjection, validateCandidateShape } from './kernel.ts';
 import { reject, ProjectionError } from './errors.ts';
 import { ZERO_ADDRESS, ZERO_BYTES32, type Address, type Bytes32, type CandidateEntry, type Instant, type ProjectionEntry, type Settlement, type TokenId } from './types.ts';
 import type { ProofMaterial, ProofProfile, ProofProfileRegistry } from '../proof/profile.ts';
@@ -156,6 +156,7 @@ export class ProjectionStore {
    * written, and none of those three can fail.
    */
   admit(tokenId: TokenId, candidate: CandidateEntry, material: ProofMaterial): AdmissionResult {
+    validateCandidateShape(candidate);
     const profile = this.#resolveProfile(material.profile);
     const adapter = this.#options.adapter;
     const acceptedRemoteHeight = adapter.acceptedHeight(tokenId);

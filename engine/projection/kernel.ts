@@ -59,7 +59,7 @@ export class TokenProjection {
    * that entry moves.
    */
   admit(candidate: CandidateEntry): ProjectionEntry {
-    this.#validateShape(candidate);
+    validateCandidateShape(candidate);
     const previous = this.#entries.at(-1);
 
     if (previous === undefined) {
@@ -155,20 +155,24 @@ export class TokenProjection {
     return this.#entries.slice();
   }
 
-  #validateShape(candidate: CandidateEntry): void {
-    const bad = (why: string): never => reject('MALFORMED_ENTRY', why);
-
-    if (!isAddress(candidate.holder)) bad('holder is not a lowercase 0x address');
-    if (!isBytes32(candidate.recordCommitment)) bad('recordCommitment is not bytes32');
-    if (!isBytes32(candidate.previousCommitment)) bad('previousCommitment is not bytes32');
-    if (!isBytes32(candidate.registryReference)) bad('registryReference is not bytes32');
-    if (!isUint64(candidate.effectiveAt)) bad('effectiveAt is not a uint64');
-    if (!isUint64(candidate.version)) bad('version is not a uint64');
-    if (candidate.recordCommitment === ZERO_BYTES32) bad('recordCommitment is zero');
-    if (candidate.recordCommitment === candidate.previousCommitment) {
-      bad('recordCommitment repeats previousCommitment');
-    }
-  }
 }
+
+/** Validate fields before any proof profile or caller dereferences them. */
+export const validateCandidateShape = (candidate: CandidateEntry): void => {
+  const bad = (why: string): never => reject('MALFORMED_ENTRY', why);
+
+  if (typeof candidate !== 'object' || candidate === null) bad('entry must be an object');
+
+  if (!isAddress(candidate.holder)) bad('holder is not a lowercase 0x address');
+  if (!isBytes32(candidate.recordCommitment)) bad('recordCommitment is not bytes32');
+  if (!isBytes32(candidate.previousCommitment)) bad('previousCommitment is not bytes32');
+  if (!isBytes32(candidate.registryReference)) bad('registryReference is not bytes32');
+  if (!isUint64(candidate.effectiveAt)) bad('effectiveAt is not a uint64');
+  if (!isUint64(candidate.version)) bad('version is not a uint64');
+  if (candidate.recordCommitment === ZERO_BYTES32) bad('recordCommitment is zero');
+  if (candidate.recordCommitment === candidate.previousCommitment) {
+    bad('recordCommitment repeats previousCommitment');
+  }
+};
 
 export { ProjectionError };
