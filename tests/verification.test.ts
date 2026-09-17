@@ -4,7 +4,7 @@ import { ProjectionStore } from '../engine/projection/store.ts';
 import { ProofProfileRegistry } from '../engine/proof/profile.ts';
 import { MerkleProofProfile, merklePath, merkleRoot } from '../engine/proof/merkleProfile.ts';
 import { MockZkProofProfile } from '../engine/proof/zkProfile.ts';
-import { bindingDigest } from '../engine/proof/binding.ts';
+import { bindingDigest, sha256Hex } from '../engine/proof/binding.ts';
 import { MemoryChainAdapter } from '../adapters/memory/memoryChain.ts';
 import { ZERO_BYTES32, type CandidateEntry } from '../engine/projection/types.ts';
 import { ProjectionError } from '../engine/projection/errors.ts';
@@ -27,16 +27,16 @@ const candidate: CandidateEntry = {
  * Build a store whose only profiles are the real ones, and publish a state
  * root at HEIGHT containing the binding digest for `entry`.
  */
-const engine = (entry: CandidateEntry = candidate, settlementId = ZERO_BYTES32) => {
+const engine = (entry: CandidateEntry = candidate, settlementId = ZERO_BYTES32, profile = 'merkle') => {
   const adapter = new MemoryChainAdapter();
   const merkle = new MerkleProofProfile(adapter);
   const zk = new MockZkProofProfile(adapter);
   const profiles = new ProofProfileRegistry();
-  profiles.register(merkle);
-  profiles.register(zk);
+  profiles.register(merkle, sha256Hex(merkle.id));
+  profiles.register(zk, sha256Hex(zk.id));
   const store = new ProjectionStore({
     registerId: commitment(0x8415),
-    verificationProfile: merkle.id,
+    verificationProfile: sha256Hex(profile === 'zk' ? zk.id : merkle.id),
     profiles,
     adapter,
   });
@@ -139,7 +139,7 @@ test('a proof against a height with no accepted root is refused', () => {
 });
 
 test('the zk profile verifies a proof bound to this admission', () => {
-  const e = engine();
+  const e = engine(candidate, ZERO_BYTES32, 'zk');
   const proof = e.zk.prove({ remoteHeight: HEIGHT }, e.context);
   const result = e.store.admit(TOKEN, candidate, {
     profile: e.zk.id, remoteHeight: HEIGHT, payload: { proof },
@@ -148,7 +148,7 @@ test('the zk profile verifies a proof bound to this admission', () => {
 });
 
 test('a zk proof does not carry to another admission', () => {
-  const e = engine();
+  const e = engine(candidate, ZERO_BYTES32, 'zk');
   const proof = e.zk.prove({ remoteHeight: HEIGHT }, e.context);
 
   rejects('PROOF_PROFILE_REJECTED', () =>
@@ -192,4 +192,24 @@ test('an admission refused by the profile advances no remote height', () => {
     e.store.admit(TOKEN, candidate, { profile: e.merkle.id, remoteHeight: HEIGHT, payload: { path: [] } }));
   assert.equal(e.adapter.acceptedHeight(TOKEN), 0n);
   assert.equal(e.store.entryCount(TOKEN), 0);
+});
+
+
+test('the advertised identity selects a fixed registered verifier', () => {
+  const profiles = new ProofProfileRegistry();
+  const identity = commitment(123);
+  let calls = 0;
+  const profile = { id: 'configured', verify: () => { calls++; return { admitted: false as const, reason: 'policy' }; } };
+  profiles.register(profile, identity);
+  profiles.register({ id: 'other', verify: () => ({ admitted: true }) }, commitment(124));
+  const store = new ProjectionStore({ registerId: commitment(1), verificationProfile: identity, profiles, adapter: new MemoryChainAdapter() });
+  assert.throws(() => profiles.register(profile, identity), /already registered/);
+  assert.throws(() => profiles.register(profile, commitment(125)), /already registered/);
+  assert.throws(() => new ProjectionStore({ registerId: commitment(1), verificationProfile: commitment(999), profiles, adapter: new MemoryChainAdapter() }), /not registered/);
+  rejects('PROOF_PROFILE_REJECTED', () => store.admit(TOKEN, candidate, { profile: 'other', remoteHeight: HEIGHT, payload: {} }));
+  profile.verify = () => { throw new Error('replacement must not be called'); };
+  rejects('PROOF_PROFILE_REJECTED', () => store.admit(TOKEN, candidate, { profile: 'configured', remoteHeight: HEIGHT, payload: {} }));
+  assert.equal(calls, 1);
+  assert.equal(store.entryCount(TOKEN), 0);
+  assert.equal(store.verificationProfile, identity);
 });

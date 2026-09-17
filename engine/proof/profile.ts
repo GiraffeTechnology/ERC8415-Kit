@@ -1,4 +1,4 @@
-import type { CandidateEntry, Commitment, Instant, TokenId } from '../projection/types.ts';
+import { isBytes32, type Bytes32, type CandidateEntry, type Commitment, type Instant, type TokenId } from '../projection/types.ts';
 
 /**
  * What an admission proof is checked against.
@@ -54,18 +54,26 @@ export interface ProofProfile {
   verify(material: ProofMaterial, context: ProofContext): ProofVerdict;
 }
 
+/** Explicit, immutable mapping from the advertised identity to one verifier. */
 export class ProofProfileRegistry {
-  readonly #profiles = new Map<string, ProofProfile>();
+  readonly #profiles = new Map<Bytes32, ProofProfile>();
+  readonly #ids = new Set<string>();
 
-  register(profile: ProofProfile): void {
-    this.#profiles.set(profile.id, profile);
+  register(profile: ProofProfile, identity: Bytes32): void {
+    if (!isBytes32(identity)) throw new Error('verification profile identity must be bytes32');
+    const key = identity.toLowerCase();
+    if (this.#profiles.has(key) || this.#ids.has(profile.id)) {
+      throw new Error('verification profile is already registered');
+    }
+    this.#profiles.set(key, Object.freeze({ id: profile.id, verify: profile.verify.bind(profile) }));
+    this.#ids.add(profile.id);
   }
 
-  get(id: string): ProofProfile | undefined {
-    return this.#profiles.get(id);
+  get(identity: Bytes32): ProofProfile | undefined {
+    return this.#profiles.get(identity.toLowerCase());
   }
 
   ids(): readonly string[] {
-    return [...this.#profiles.keys()].sort();
+    return [...this.#ids].sort();
   }
 }

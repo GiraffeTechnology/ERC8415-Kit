@@ -36,7 +36,7 @@ const scene = () => {
     clock,
   });
   const profiles = new ProofProfileRegistry();
-  profiles.register(profile);
+  profiles.register(profile, commitment(0x0be7));
   const store = new ProjectionStore({
     registerId: commitment(0x8415), verificationProfile: commitment(0x0be7), profiles, adapter,
   });

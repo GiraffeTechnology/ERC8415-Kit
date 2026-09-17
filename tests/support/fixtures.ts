@@ -44,8 +44,8 @@ export interface Harness {
 
 export const harness = (): Harness => {
   const profiles = new ProofProfileRegistry();
-  profiles.register(openProfile);
-  profiles.register(closedProfile);
+  profiles.register(openProfile, commitment(0x0be7));
+  profiles.register(closedProfile, commitment(0xc105));
   const adapter = new MemoryChainAdapter();
   const store = new ProjectionStore({
     registerId: commitment(0x8415),

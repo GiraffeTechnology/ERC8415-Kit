@@ -32,9 +32,13 @@ export class ProjectionStore {
   readonly #openGaps = new Map<string, Bytes32>();
   readonly #settlements = new Map<Bytes32, Settlement>();
   readonly #options: StoreOptions;
+  readonly #profile: ProofProfile;
 
   constructor(options: StoreOptions) {
-    this.#options = options;
+    const profile = options.profiles.get(options.verificationProfile);
+    if (profile === undefined) throw new Error('configured verification profile is not registered');
+    this.#options = Object.freeze({ ...options });
+    this.#profile = profile;
   }
 
   get registerId(): Bytes32 {
@@ -209,11 +213,10 @@ export class ProjectionStore {
   }
 
   #resolveProfile(id: string): ProofProfile {
-    const profile = this.#options.profiles.get(id);
-    if (profile === undefined) {
-      return reject('PROOF_PROFILE_REJECTED', `unknown proof profile: ${id}`);
+    if (id !== this.#profile.id) {
+      return reject('PROOF_PROFILE_REJECTED', `proof profile does not match the configured verifier: ${id}`);
     }
-    return profile;
+    return this.#profile;
   }
 
   #require(tokenId: TokenId): TokenProjection {
