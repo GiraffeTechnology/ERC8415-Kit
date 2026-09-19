@@ -66,7 +66,7 @@ npm run verify
 python3 -B sdk/python/test_client.py
 ```
 
-The repository's documented verification run reports 151 passing Node tests, including the mandatory conformance suite, Solidity ABI checks, authenticated loopback coverage and the Python SDK suite. GitHub Actions for the current `main` commit runs only Node 22 and Node 24 `npm ci`, typecheck and Node tests; both jobs currently pass. CI success verifies the test pipeline, not deployment, live-chain or production-readiness gates.
+The repository's documented verification run reports 151 passing Node tests, including the mandatory conformance suite, Solidity ABI checks, authenticated loopback coverage and the Python SDK suite. The latest observed GitHub Actions run for implementation commit `d3e9645` ran only Node 22 and Node 24 `npm ci`, typecheck and Node tests; both jobs passed. The documentation commit updating this README has not been independently rerun here. CI success verifies the test pipeline, not deployment, live-chain or production-readiness gates.
 
 The acceptance plan additionally requires:
 
