@@ -229,6 +229,30 @@ update, transfer and settle commands. Those are the mutable asset registry the
 standard forbids, and a test asserts a verified attestation still leaves the
 instant provisional — the property that branch's design could not hold.
 
+## Stage 3 — on-chain delivery
+
+A concrete `contracts/RegisterProjection.sol`, deployed to an EVM and driven by
+real transactions. Run with `npm run test:onchain`.
+
+| Requirement | Implementation | Test (`tests/onchain/projection.onchain.cjs`) | Status |
+| --- | --- | --- | --- |
+| A deployable contract exists | `contracts/RegisterProjection.sol` | deploys as a real contract with code at its address | delivered |
+| Deployed code advertises `0x6309e170` | `supportsInterface` | advertises the frozen projection identifier from the deployed code | delivered |
+| Transaction submission — initialization | `initialize` | submits an initialization transaction and emits RegisterInitialized | delivered |
+| Transaction submission — admission | `admit` | submits an admission transaction and emits RegisterSuperseded | delivered |
+| Event verification from the log index | events | verifies the event history by querying logs from the chain | delivered |
+| Invariant 2 closes the prior interval on chain | `admit` | closes the preceding interval on chain with the register's effective time | delivered |
+| The finality rule from deployed code | `isFinalAsOf` | answers the finality rule from deployed code | delivered |
+| Uncovered instant reverts; finality answers | `entryAsOf`, `isFinalAsOf` | reverts an uncovered instant while finality still answers | delivered |
+| Every invariant violation reverts and writes nothing | `initialize`, `admit` | rejects every invariant violation as a reverted transaction | delivered |
+| Per-token, not cross-token, uniqueness | `_commitmentSeen` | keeps commitment uniqueness per token, not across tokens | delivered |
+| No freeze, revoke, override or rollback on chain | — | exposes no freeze, revoke, override or rollback on the deployed surface | delivered |
+| Deployed code matches the shared vectors | — | reproduces the shared conformance vectors from deployed code | delivered |
+
+Not delivered by this stage: an on-chain `IProjectionSettlement`
+implementation, and any live network. The chain is in-process, so gas
+economics, reorg behaviour and a real registrar's operations are unexercised.
+
 ## Shared conformance vectors
 
 `conformance/projection-vectors.json` is the authoritative copy of the
