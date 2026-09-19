@@ -178,15 +178,30 @@ No direct frontend-to-blockchain interaction is allowed.
 
 The in-process projection engine, proof profiles, settlement primitives,
 authenticated API, SDKs and console components are implemented and tested.
-The full Stage 0–7 delivery gate is **not complete**. Stage 3 has interfaces,
-ABI checks and an RPC adapter tested with a fake node, but no deployed
-projection/settlement contract, transaction submission or event verification.
-Console session-provider integration, durable storage and production deployment
-evidence also remain outstanding.
 
-`npm run verify` runs 151 tests, including the twenty mandatory conformance
-tests, the Solidity compilation with both frozen ERC-165 identifiers derived
-from the compiled ABI, and the Python SDK suite. No runtime dependencies.
+Stage 3 now includes a concrete `RegisterProjection` contract that is deployed
+to an EVM, driven by real transactions, and whose events are verified from
+receipts and from the chain's log index. The deployed code reproduces the same
+`conformance/projection-vectors.json` the in-process kernel runs against.
+
+The full Stage 0–7 delivery gate is still **not complete**. Outstanding:
+
+- no on-chain `IProjectionSettlement` implementation — the deployed contract
+  advertises projection conformance only, and settlement remains in-process;
+- no live-network deployment. The chain used is in-process, so gas economics,
+  reorg behaviour and a real registrar's operations are unexercised;
+- durable storage. Every store is in-process and does not survive a restart;
+- console session-provider integration. The console requires an injected
+  `authenticate` port and ships no provider for it;
+- production deployment evidence, container run, and the 80% coverage target,
+  which has not been measured.
+
+The zk profile remains a mock and is documented as one.
+
+`npm run verify` runs 151 in-process tests plus 12 on-chain tests, including
+the twenty mandatory conformance tests, the Solidity compilation with both
+frozen ERC-165 identifiers derived from the compiled ABI, and the Python SDK
+suite. No runtime dependencies.
 
 Per-stage evidence, mapping every invariant to implementation and test name, is
 in [docs/DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md). The delivery report
