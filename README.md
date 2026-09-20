@@ -43,8 +43,18 @@ The current repository contains:
    on-chain tests.
 
 The Solidity tree carries the frozen ERC-8415 interfaces, selector helpers and
-concrete implementations of both of them. The chain they are exercised on is
-in-process; no live network deployment exists.
+concrete implementations of both of them.
+
+`RegisterProjection` is authority-gated rather than proof-gated: it enforces
+the four projection invariants and verifies no proof itself. The proof lives
+one layer out, in `ProjectionSettlement`, which is the register's immutable
+source authority and verifies a bound proof before every write it makes -
+including the register's first entry. Nothing else can reach the register, so
+authority-gating the register and proof-gating its only authority amount to
+the same guarantee.
+
+The chain both are deployed to is in-process, so gas economics, reorg
+behaviour and a real registrar's operations are unexercised.
 
 ## Stage delivery status
 
@@ -73,11 +83,16 @@ python3 -B sdk/python/test_client.py
 
 The verification run observed for this tree reports 165 passing in-process
 Node tests and 28 passing on-chain tests, covering the mandatory conformance
-suite, Solidity ABI checks, authenticated loopback coverage, the journal's
-restart and crash-recovery cases, the deployed projection and settlement
-contracts, and the Python SDK suite. CI runs the same `npm ci`, typecheck,
-Node tests and on-chain tests on Node 22 and Node 24. CI success verifies the
-test pipeline, not deployment, live-chain or production-readiness gates.
+suite, Solidity ABI checks with both frozen ERC-165 identifiers derived from
+the compiled ABI, authenticated loopback coverage, the journal's restart and
+crash-recovery cases, the deployed projection and settlement contracts, the
+deployed code reproducing the same `conformance/projection-vectors.json` the
+in-process kernel runs against, and the Python SDK suite.
+
+CI runs `npm ci`, typecheck, the coverage-gated test step and the on-chain
+step on Node 22 and Node 24. Its result for any given commit is whatever that
+run reports and is not asserted here. CI success verifies the test pipeline,
+not deployment, live-chain or production-readiness gates.
 
 The acceptance plan additionally requires:
 
@@ -85,12 +100,9 @@ The acceptance plan additionally requires:
   current tree exceeds at 96.88% lines, 87.36% branches and 95.69% functions
   over the source tree, excluding the tests themselves;
 - an integration run from register identity through proof verification, admission, temporal query, gap close and audit;
-- a chain run of deploy contract → execute transaction → verify event, which
-  `npm run test:onchain` performs against an in-process EVM but not a live
-  network;
 - deployment and recovery evidence.
 
-Those items remain outstanding. See [DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md) and [FINAL-DELIVERY-REPORT.md](FINAL-DELIVERY-REPORT.md).
+Those items remain outstanding. The chain run of deploy contract → execute transaction → verify event is covered by `npm run test:onchain`, against an in-process EVM rather than a live network. See [DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md) and [FINAL-DELIVERY-REPORT.md](FINAL-DELIVERY-REPORT.md).
 
 ## Responsibility boundary
 

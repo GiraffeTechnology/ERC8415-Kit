@@ -249,6 +249,15 @@ real transactions. Run with `npm run test:onchain`.
 | No freeze, revoke, override or rollback on chain | — | exposes no freeze, revoke, override or rollback on the deployed surface | delivered |
 | Deployed code matches the shared vectors | — | reproduces the shared conformance vectors from deployed code | delivered |
 
+The deployed contract is authority-gated, not proof-gated. `initialize` and
+`admit` take no proof data and verify none; the source authority being the
+caller is the whole check, and a test asserts a non-authority admission
+reverts. Proof-profile verification, remote-height advancement and replay
+checks live in the in-process admission engine, and the on-chain path that
+carries `proofData` is `IProjectionSettlement`, which this contract does not
+implement or advertise. A deployment needing admissions verified on chain must
+put a verifier-backed settlement contract in front of this one.
+
 Not delivered by this stage: an on-chain `IProjectionSettlement`
 implementation, and any live network. The chain is in-process, so gas
 economics, reorg behaviour and a real registrar's operations are unexercised.
@@ -317,68 +326,16 @@ the failure mode these vectors close.
 `npm run verify`: typecheck, 165 passing in-process Node tests and 28 passing
 on-chain tests, including the Python SDK suite, authenticated loopback
 integration, journal restart and crash recovery, Solidity compilation, the
-deployed projection and settlement contracts, and shared conformance vectors.
-This is local Node 24 validation; CI also targets Node 22.
+deployed projection and settlement contracts, the deployed code reproducing the
+shared conformance vectors, and the coverage gate. This is local Node 24
+validation; CI also targets Node 22.
 
-The full stage plan remains incomplete. Missing evidence includes a deployed
-contract transaction/event run, measured coverage against the plan's 80% target,
-a deployed console session provider and production persistence/recovery. Docker
-and live-chain integration were not exercised during these corrections.
-
-## Stage 4 — on-chain settlement
-
-A concrete `contracts/ProjectionSettlement.sol`, deployed as the register's
-sole writer, with proof verification behind `ISettlementProofVerifier`. Run
-with `npm run test:onchain`.
-
-| Requirement | Implementation | Test (`tests/onchain/settlement.onchain.cjs`) | Status |
-| --- | --- | --- | --- |
-| Settlement is the register's only writer | immutable `sourceAuthority` | deploys as the register's only writer | delivered |
-| Deployed code advertises `0xf4a7d71b` and not `0x6309e170` | `supportsInterface` | advertises the frozen settlement identifier from the deployed code | delivered |
-| Opening a gap records it without changing finality | `beginSettlement` | opens a gap and reports it as an open gap, not as a loss of finality | delivered |
-| Settlement authority is separate from ownership | `isSettlementAuthority` | refuses to open a gap for anyone but a settlement authority | delivered |
-| Deadline in the future and within the period | `beginSettlement` | refuses a deadline in the past or beyond the settlement period | delivered |
-| One open gap per token, one record per identifier | `_openGap`, `_settlements` | allows one open gap per token and one record per identifier | delivered |
-| Closing a gap admits through the register | `finalizeSettlement` | closes a gap by admitting the entry, and the register records it | delivered |
-| Any relayer may submit a bound proof | no caller check on finalize | closes a gap by admitting the entry, and the register records it | delivered |
-| Closing a gap confers no finality on what it admitted | `isFinalAsOf` unchanged by settlement | closing a gap does not make the instant it admitted final | delivered |
-| A proof is bound to one admission | `admissionBinding`, `AttestationProofVerifier` | refuses a proof bound to a different admission | delivered |
-| Expiry is not an outcome | `SettlementExpired` | refuses to close a gap that ran past its deadline | delivered |
-| Register invariants still apply through settlement | `RegisterProjection.admit` | still enforces the register's invariants through settlement | delivered |
-| Cancellation settles nothing | `cancelSettlement` | cancels only after the deadline, only by the initiator, and settles nothing | delivered |
-| A closed gap cannot be closed again | `GapStatus` | refuses to close a gap that is no longer open, and reopens cleanly | delivered |
-| The register's first entry requires a bound proof | `initializationBinding`, `initializeRegister` | requires a bound proof for the register's first entry | delivered |
-| A genesis proof cannot be replayed as an admission | version 1 vs 2+ in the binding | does not let a genesis proof be replayed as an admission | delivered |
-| Settlement cannot write a register it does not own | `NotSourceAuthority` | does not let settlement reach a register it is not the authority of | delivered |
-
-`GapStatus.SUPERSEDED` and `SettlementSuperseded` are declared by the frozen
-interface and never produced. A token holds at most one open gap, and replacing
-an open gap with another would be a third way to close one without either
-admitting or cancelling. The in-process engine has no such path either.
-
-Not delivered by this stage: a live network, and a succinct verifier. The
-shipped verifier admits on a named attestor's signature over the binding, which
-is the weakest profile that is still a real one. The chain is in-process, so
-gas economics, reorg behaviour and a real registrar's operations are
-unexercised.
-
-## Coverage
-
-The acceptance plan's 80% target, measured rather than asserted. `npm run
-coverage` runs the in-process suite under Node's own coverage and exits
-non-zero below 80% on lines, branches or functions. `npm run verify` runs it,
-and so does CI on both Node 22 and Node 24.
-
-| Metric | Threshold | Measured | Status |
-| --- | --- | --- | --- |
-| Lines | 80% | 96.88% | delivered |
-| Branches | 80% | 87.36% | delivered |
-| Functions | 80% | 95.69% | delivered |
-
-The measurement excludes `tests/**`, so the figures describe the source tree
-and not the suite measuring itself. The threshold was checked against a
-deliberately failing bound before being wired in, so the gate is known to fail
-rather than merely known to pass.
-
-Not covered by this gate: the Solidity tree, whose evidence is the on-chain
-suites above rather than a line-coverage figure.
+The full stage plan remains incomplete. The deployed contract transaction and
+event run is delivered for both frozen interfaces, and the plan's 80% coverage
+target is measured and enforced — both are evidenced in their own sections
+below. What is still missing needs infrastructure the repository cannot supply
+on its own: a live network, so gas economics, reorg behaviour and a real
+registrar's operations remain unexercised; a succinct verifier behind the proof
+port; a deployed console session provider; a container run, which was not
+exercised during these corrections; and recovery evidence from a real restart
+under load.

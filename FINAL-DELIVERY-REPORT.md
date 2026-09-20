@@ -48,13 +48,15 @@ as this application tree or independently verify MPT/storage proofs.
 
 ```sh
 npm ci
-npm run verify                     # typecheck + 165 Node tests + 28 on-chain tests
+npm run verify                     # typecheck + 165 in-process + 28 on-chain tests
 python3 -B sdk/python/test_client.py # standalone Python checks
 ```
 
 Local validation used Node 24. Tests include authenticated HTTP integration,
 both SDKs reading 205-entry histories, uint256 identifiers, proof binding,
-settlement deadline boundaries, Solidity compilation and conformance vectors.
+settlement deadline boundaries, Solidity compilation, conformance vectors, and
+a deployed `RegisterProjection` driven by mined transactions whose events are
+read back from receipts and from the chain's log index.
 The configured CI matrix also runs Node 22; its result must be checked on the PR.
 
 Independent read-only review of the six security boundary corrections found

@@ -15,6 +15,27 @@ import {IRegisterProjection} from "./IRegisterProjection.sol";
 /// There is no freeze, revoke, override or rollback, and no path that rewrites
 /// an admitted entry. `supersededAt` on the preceding entry is the single
 /// field the standard writes after admission, exactly once.
+///
+/// ## Trust model: authority-gated, not proof-gated
+///
+/// `initialize` and `admit` are gated on `sourceAuthority` and take no proof
+/// data. This contract performs no proof-profile verification, no remote-height
+/// advancement and no replay check: it enforces the four projection invariants
+/// and nothing about where an entry came from. Whoever holds the source
+/// authority key can append any holder, commitment, reference and effective
+/// time the invariants permit, and no later transaction can take it back.
+///
+/// That is the boundary this artifact sits on, not an omission. Proof-profile
+/// verification is the admission engine's job (`engine/verification`), and the
+/// on-chain path that carries `proofData` is `IProjectionSettlement`, which
+/// this contract does not implement — it advertises `IRegisterProjection`
+/// only. A deployment that needs admissions verified on chain must put a
+/// verifier-backed settlement contract in front of this one, or hold the
+/// authority key behind one; this contract will not do it for them.
+///
+/// `ProjectionSettlement` in this repository is that contract. It implements
+/// `IProjectionSettlement`, holds the source authority, and verifies a bound
+/// proof before every write it makes - the register's first entry included.
 contract RegisterProjection is IRegisterProjection {
     error NotSourceAuthority();
     error RegisterIdInvalid();
@@ -93,6 +114,9 @@ contract RegisterProjection is IRegisterProjection {
     /// the prior entry's supersededAt to this entry's effectiveAt, and emit
     /// RegisterSuperseded. The prior interval is closed by the register's own
     /// effective time, not by when the chain learned of the change.
+    ///
+    /// Takes no proof and verifies none. See the trust-model note on the
+    /// contract: the caller being the source authority is the whole check.
     function admit(
         uint256 tokenId,
         bytes32 recordCommitment,
