@@ -32,12 +32,15 @@ jobs:
       - name: Typecheck
         run: npm run typecheck
 
-      - name: Test
-        run: npm test
+      # Runs the suite under coverage and fails below 80% on lines, branches
+      # or functions, so the acceptance target is a gate rather than a number
+      # someone reads off a report.
+      - name: Test with coverage
+        run: npm run coverage
 
-      # Deploys the projection contract to an in-process EVM, submits real
-      # transactions against it and verifies the events they emit. Separate
-      # from the step above because it is the only part of the suite that
-      # needs a chain.
+      # Deploys the projection and settlement contracts to an in-process EVM,
+      # submits real transactions against them and verifies the events they
+      # emit. Separate from the step above because it is the only part of the
+      # suite that needs a chain.
       - name: On-chain delivery
         run: npm run test:onchain

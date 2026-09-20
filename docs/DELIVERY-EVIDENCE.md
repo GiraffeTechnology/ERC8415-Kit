@@ -355,3 +355,24 @@ shipped verifier admits on a named attestor's signature over the binding, which
 is the weakest profile that is still a real one. The chain is in-process, so
 gas economics, reorg behaviour and a real registrar's operations are
 unexercised.
+
+## Coverage
+
+The acceptance plan's 80% target, measured rather than asserted. `npm run
+coverage` runs the in-process suite under Node's own coverage and exits
+non-zero below 80% on lines, branches or functions. `npm run verify` runs it,
+and so does CI on both Node 22 and Node 24.
+
+| Metric | Threshold | Measured | Status |
+| --- | --- | --- | --- |
+| Lines | 80% | 96.82% | delivered |
+| Branches | 80% | 87.82% | delivered |
+| Functions | 80% | 95.22% | delivered |
+
+The measurement excludes `tests/**`, so the figures describe the source tree
+and not the suite measuring itself. The threshold was checked against a
+deliberately failing bound before being wired in, so the gate is known to fail
+rather than merely known to pass.
+
+Not covered by this gate: the Solidity tree, whose evidence is the on-chain
+suites above rather than a line-coverage figure.

@@ -82,10 +82,14 @@ are not covered.
 Still outstanding: any live network, so gas economics, reorg behaviour and a
 real registrar's operations are unexercised; a succinct verifier behind the
 proof port; a console session provider behind the injected `authenticate`
-port; a container run; recovery evidence from a real restart under load; and
-the plan's 80% coverage target, which has not been measured. These gaps remain
-acceptance work; passing unit tests and an in-process chain do not establish
-production delivery.
+port; a container run; and recovery evidence from a real restart under load.
+These gaps remain acceptance work; passing unit tests and an in-process chain
+do not establish production delivery.
+
+The plan's 80% coverage target is no longer unmeasured. `npm run coverage`
+measures the source tree, excluding the tests themselves, and fails below 80%
+on lines, branches or functions. The current tree reports 96.82% lines, 87.82%
+branches and 95.22% functions. `npm run verify` runs it, as does CI.
 
 No runtime dependencies were added. TypeScript, Node types, solc,
 ethereum-cryptography and, for the on-chain suite only, hardhat and ethers

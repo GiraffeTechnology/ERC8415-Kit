@@ -57,7 +57,7 @@ in-process; no live network deployment exists.
 | 4 Settlement MVP | In-process open/admit/cancel workflow, authority and deadline rules, and a deployed `ProjectionSettlement` that is the register's sole writer, verifying a signed admission binding on chain | Live-network deployment; a succinct verifier behind the same proof port | On-chain complete in-process; no live network |
 | 5 Oracle/Application SDK | Authenticated JS/Python clients, pagination, uint64 handling and separate temporal signals | Same-transaction on-chain reads remain an integration responsibility | Code complete |
 | 6 Institutional Console | Read-only views, roles, timeline, authentication callback and output escaping | Deployed session provider/login flow and deployed acceptance | Code complete; deployment evidence missing |
-| 7 Production Infrastructure | API-key hashing, tenant isolation, refusal metrics, audit export primitives, and journal-based durable persistence | Operational deployment, recovery evidence from a real restart under load, and measured 80% coverage | Primitives only |
+| 7 Production Infrastructure | API-key hashing, tenant isolation, refusal metrics, audit export primitives, journal-based durable persistence, and an enforced 80% coverage gate measuring 96.82% lines / 87.82% branches / 95.22% functions | Operational deployment and recovery evidence from a real restart under load | Primitives plus a measured coverage gate |
 
 The complete Stage 0–7 delivery gate is therefore **not complete**. This conclusion is based on the stage PRD, the source tree, tests, CI configuration and delivery evidence, not on README text alone.
 
@@ -81,7 +81,9 @@ test pipeline, not deployment, live-chain or production-readiness gates.
 
 The acceptance plan additionally requires:
 
-- unit coverage of at least 80%;
+- unit coverage of at least 80%, which `npm run coverage` enforces and the
+  current tree exceeds at 96.82% lines, 87.82% branches and 95.22% functions
+  over the source tree, excluding the tests themselves;
 - an integration run from register identity through proof verification, admission, temporal query, gap close and audit;
 - a chain run of deploy contract → execute transaction → verify event, which
   `npm run test:onchain` performs against an in-process EVM but not a live
