@@ -249,6 +249,15 @@ real transactions. Run with `npm run test:onchain`.
 | No freeze, revoke, override or rollback on chain | — | exposes no freeze, revoke, override or rollback on the deployed surface | delivered |
 | Deployed code matches the shared vectors | — | reproduces the shared conformance vectors from deployed code | delivered |
 
+The deployed contract is authority-gated, not proof-gated. `initialize` and
+`admit` take no proof data and verify none; the source authority being the
+caller is the whole check, and a test asserts a non-authority admission
+reverts. Proof-profile verification, remote-height advancement and replay
+checks live in the in-process admission engine, and the on-chain path that
+carries `proofData` is `IProjectionSettlement`, which this contract does not
+implement or advertise. A deployment needing admissions verified on chain must
+put a verifier-backed settlement contract in front of this one.
+
 Not delivered by this stage: an on-chain `IProjectionSettlement`
 implementation, and any live network. The chain is in-process, so gas
 economics, reorg behaviour and a real registrar's operations are unexercised.

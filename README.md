@@ -40,7 +40,7 @@ The current repository contains:
 8. a concrete `RegisterProjection` contract, deployed to an EVM, driven by real transactions and verified from receipts and from the chain's log index;
 9. semantic, API, SDK, console, settlement, adapter, Solidity interface and on-chain tests.
 
-The deployed contract advertises projection conformance only. There is no on-chain `IProjectionSettlement` implementation; settlement remains in-process. The chain the contract is deployed to is in-process, so gas economics, reorg behaviour and a real registrar's operations are unexercised.
+The deployed contract advertises projection conformance only, and its admission path is authority-gated rather than proof-gated: it enforces the four projection invariants and verifies no proof. Proof-profile verification stays in the in-process admission engine, and the on-chain path carrying `proofData` is `IProjectionSettlement`, which is not implemented on chain. The chain the contract is deployed to is in-process, so gas economics, reorg behaviour and a real registrar's operations are unexercised.
 
 ## Stage delivery status
 
