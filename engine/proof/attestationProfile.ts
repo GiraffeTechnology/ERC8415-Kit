@@ -29,7 +29,7 @@ export interface AttestationOptions {
  * so an attestation cannot be lifted onto a different chain, contract, token,
  * settlement, holder, commitment pair, version or effective time.
  *
- * Ported from the Stage 2 work in the closed codex/stage2-verification branch,
+ * Ported from the Stage 2 work on the closed stage-2 branch,
  * rebound from that branch's mutable asset snapshot to this repository's
  * admission binding.
  */

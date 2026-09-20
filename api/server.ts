@@ -4,7 +4,7 @@ import { handleGateway, type GatewayOptions, type GatewayRequest } from './gatew
 /**
  * Requests are bounded before they are parsed, so an oversized body is
  * refused rather than buffered. Ported from the body-limit middleware in the
- * closed codex/stage6-infrastructure branch, which had this right.
+ * closed stage-6 branch, which had this right.
  */
 export const DEFAULT_BODY_LIMIT = 64 * 1024;
 

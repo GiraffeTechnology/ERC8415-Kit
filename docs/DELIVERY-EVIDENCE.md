@@ -203,18 +203,18 @@ evidence are not supplied; this is not a production-readiness certification.
 | Export is streamable and keeps uint64 exact | `auditExport.ts` `toNdjson` | the export is streamable and keeps uint64 as strings | delivered |
 | An export covers one tenant only | `auditExport.ts` | an export covers one tenant and stops there | delivered |
 
-## Salvaged from the closed codex stack
+## Salvaged from the closed stage branches
 
-Four things the closed `codex/*` stack got right and this implementation
+Four things the earlier closed stage branches got right and this implementation
 lacked. Each is ported with its scope corrected to the standard; the branches
 are preserved and the origin of each is named in the source.
 
 | Carried over | From | Implementation | Test |
 | --- | --- | --- | --- |
-| Ed25519 institutional attestation as a verification profile | `codex/stage2-verification` | `engine/proof/attestationProfile.ts` | `attestation.test.ts` (7 tests) |
-| Request bodies bounded before parsing | `codex/stage6-infrastructure` | `api/server.ts` `DEFAULT_BODY_LIMIT` | `api.test.ts` › an oversized body is refused before it is buffered |
-| Paged listing instead of a whole history | `codex/stage5-sdk` | `api/routes.ts` `parsePage` | `api.test.ts` › a history listing is paged rather than returned whole |
-| Transport safety: timeouts, no retries, no credential leak | `codex/stage5-sdk` | `sdk/js/client.ts`, `sdk/python/erc8415/client.py` | `sdk.test.ts` (3 tests) |
+| Ed25519 institutional attestation as a verification profile | closed stage-2 branch | `engine/proof/attestationProfile.ts` | `attestation.test.ts` (7 tests) |
+| Request bodies bounded before parsing | closed stage-6 branch | `api/server.ts` `DEFAULT_BODY_LIMIT` | `api.test.ts` › an oversized body is refused before it is buffered |
+| Paged listing instead of a whole history | closed stage-5 branch | `api/routes.ts` `parsePage` | `api.test.ts` › a history listing is paged rather than returned whole |
+| Transport safety: timeouts, no retries, no credential leak | closed stage-5 branch | `sdk/js/client.ts`, `sdk/python/erc8415/client.py` | `sdk.test.ts` (3 tests) |
 
 The attestation profile is rebound: that branch signed over a mutable asset
 snapshot, which cannot exist here. It signs the admission binding digest under
