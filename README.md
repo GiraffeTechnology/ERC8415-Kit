@@ -37,9 +37,10 @@ The current repository contains:
 5. a read-only institutional console with role checks;
 6. an Ethereum read adapter and fake-RPC conformance tests;
 7. audit export, API-key, tenant-isolation and metrics primitives;
-8. semantic, API, SDK, console, settlement, adapter and Solidity interface tests.
+8. a concrete `RegisterProjection` contract, deployed to an EVM, driven by real transactions and verified from receipts and from the chain's log index;
+9. semantic, API, SDK, console, settlement, adapter, Solidity interface and on-chain tests.
 
-The Solidity tree currently contains interfaces and selector helpers only. There is no concrete projection or settlement implementation contract in this repository.
+The deployed contract advertises projection conformance only, and its admission path is authority-gated rather than proof-gated: it enforces the four projection invariants and verifies no proof. Proof-profile verification stays in the in-process admission engine, and the on-chain path carrying `proofData` is `IProjectionSettlement`, which is not implemented on chain. The chain the contract is deployed to is in-process, so gas economics, reorg behaviour and a real registrar's operations are unexercised.
 
 ## Stage delivery status
 
@@ -48,7 +49,7 @@ The Solidity tree currently contains interfaces and selector helpers only. There
 | 0 Foundation | Repository layout, Docker files, CI and structure tests | Container execution was not rerun for the current corrections | Foundation present |
 | 1 Projection Core | In-process kernel/store, temporal API and 20 mandatory semantic tests | Durable storage and deployed runtime are outside the current implementation | In-process complete |
 | 2 Verification Engine | Merkle, Ed25519 and mock zk profiles with binding/replay checks | Production succinct verifier | Test profiles complete |
-| 3 ERC-8415 Adapter | Frozen interfaces, ABI/selector checks, fake-RPC reader and application-root adapter | Concrete deployed contracts, transaction submission, receipt/event monitoring, deploy → transact → verify-event, and Ethereum MPT proof verification | **Partial** |
+| 3 ERC-8415 Adapter | Frozen interfaces, ABI/selector checks, fake-RPC reader, application-root adapter, and a `RegisterProjection` contract deployed to an in-process EVM with transaction submission and receipt/log event verification | Live-network deployment, an on-chain `IProjectionSettlement` implementation, and Ethereum MPT proof verification | **Partial** |
 | 4 Settlement MVP | In-process open/admit/cancel workflow, authority and deadline rules | On-chain execution and chain acceptance depend on Stage 3 | In-process complete |
 | 5 Oracle/Application SDK | Authenticated JS/Python clients, pagination, uint64 handling and separate temporal signals | Same-transaction on-chain reads remain an integration responsibility | Code complete |
 | 6 Institutional Console | Read-only views, roles, timeline, authentication callback and output escaping | Deployed session provider/login flow and deployed acceptance | Code complete; deployment evidence missing |
@@ -66,16 +67,15 @@ npm run verify
 python3 -B sdk/python/test_client.py
 ```
 
-The repository's documented verification run reports 151 passing Node tests, including the mandatory conformance suite, Solidity ABI checks, authenticated loopback coverage and the Python SDK suite. The latest observed GitHub Actions run for implementation commit `d3e9645` ran only Node 22 and Node 24 `npm ci`, typecheck and Node tests; both jobs passed. The documentation commit updating this README has not been independently rerun here. CI success verifies the test pipeline, not deployment, live-chain or production-readiness gates.
+The repository's documented verification run reports 151 passing in-process Node tests plus 12 on-chain tests, including the mandatory conformance suite, Solidity ABI checks with both frozen ERC-165 identifiers derived from the compiled ABI, authenticated loopback coverage, the deployed contract reproducing the same `conformance/projection-vectors.json` the in-process kernel runs against, and the Python SDK suite. The latest GitHub Actions run observed before this change, for implementation commit `d3e9645`, ran Node 22 and Node 24 `npm ci`, typecheck and Node tests; both jobs passed. CI now also runs the on-chain step; its result on this branch is whatever the run for this commit reports, and is not asserted here. CI success verifies the test pipeline, not deployment, live-chain or production-readiness gates.
 
 The acceptance plan additionally requires:
 
 - unit coverage of at least 80%;
 - an integration run from register identity through proof verification, admission, temporal query, gap close and audit;
-- a chain run of deploy contract → execute transaction → verify event;
 - deployment and recovery evidence.
 
-Those items remain outstanding. See [DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md) and [FINAL-DELIVERY-REPORT.md](FINAL-DELIVERY-REPORT.md).
+Those items remain outstanding. The chain run of deploy contract → execute transaction → verify event is covered by `npm run test:onchain`, against an in-process EVM rather than a live network. See [DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md) and [FINAL-DELIVERY-REPORT.md](FINAL-DELIVERY-REPORT.md).
 
 ## Responsibility boundary
 

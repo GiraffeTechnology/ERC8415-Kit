@@ -48,13 +48,15 @@ as this application tree or independently verify MPT/storage proofs.
 
 ```sh
 npm ci
-npm run verify                     # typecheck + 151 passing Node tests
+npm run verify                     # typecheck + 151 in-process + 12 on-chain tests
 python3 -B sdk/python/test_client.py # standalone Python checks
 ```
 
 Local validation used Node 24. Tests include authenticated HTTP integration,
 both SDKs reading 205-entry histories, uint256 identifiers, proof binding,
-settlement deadline boundaries, Solidity compilation and conformance vectors.
+settlement deadline boundaries, Solidity compilation, conformance vectors, and
+a deployed `RegisterProjection` driven by mined transactions whose events are
+read back from receipts and from the chain's log index.
 The configured CI matrix also runs Node 22; its result must be checked on the PR.
 
 Independent read-only review of the six security boundary corrections found
@@ -64,12 +66,23 @@ mapping is in `docs/DELIVERY-EVIDENCE.md`.
 
 ## Limits and outstanding work
 
-The stores are in-process, the zk profile is a mock, and adapter integration
-uses a fake RPC node. No live chain, deployed EVM transaction/event flow or
-container run was validated here. The plan's 80% coverage target has not been
-measured. These gaps remain acceptance work; interface compilation and passing
-unit tests do not establish production delivery.
+The stores are in-process and the zk profile is a mock. The read adapter is
+still exercised against a fake RPC node.
 
-No runtime dependencies were added. TypeScript, Node types, solc and
-ethereum-cryptography remain development dependencies. Finality continues to be
+A deployed EVM transaction and event flow is now validated: `RegisterProjection`
+is deployed, admissions are submitted as mined transactions, and events are
+read back both from receipts and from the chain's log index. That closes the
+deployed-contract, transaction-submission and event-verification gaps for
+projection conformance.
+
+Still outstanding: an on-chain `IProjectionSettlement` implementation; any live
+network, so gas economics and reorg behaviour are unexercised; durable storage;
+a console session provider behind the injected `authenticate` port; a container
+run; and the plan's 80% coverage target, which has not been measured. These
+gaps remain acceptance work; passing unit tests and an in-process chain do not
+establish production delivery.
+
+No runtime dependencies were added. TypeScript, Node types, solc,
+ethereum-cryptography and, for the on-chain suite only, hardhat and ethers
+remain development dependencies. Finality continues to be
 the later-admission rule; cancellation changes no projection history.
