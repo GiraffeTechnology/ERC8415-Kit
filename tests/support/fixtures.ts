@@ -38,6 +38,8 @@ export const closedProfile: ProofProfile = {
 
 export interface Harness {
   readonly store: ProjectionStore;
+  /** Exposed so a test can build a second store over the same profiles. */
+  readonly profiles: ProofProfileRegistry;
   readonly adapter: MemoryChainAdapter;
   height: bigint;
 }
@@ -53,7 +55,7 @@ export const harness = (): Harness => {
     profiles,
     adapter,
   });
-  return { store, adapter, height: 0n };
+  return { store, profiles, adapter, height: 0n };
 };
 
 export interface EntrySpec {
