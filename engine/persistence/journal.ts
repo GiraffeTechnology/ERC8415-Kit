@@ -1,4 +1,4 @@
-import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, writeSync, existsSync } from 'node:fs';
+import { closeSync, fsyncSync, mkdirSync, openSync, readFileSync, truncateSync, writeSync, existsSync } from 'node:fs';
 import { dirname } from 'node:path';
 
 /**
@@ -26,6 +26,9 @@ export interface JournalReadResult {
    * A trailing line that was not a complete record. It means the process died
    * mid-append; the record was never acknowledged to a caller, so discarding
    * it is the correct recovery and not data loss.
+   *
+   * When this is true the file has been physically truncated to the last
+   * complete record, not merely parsed around.
    */
   readonly truncatedTail: boolean;
 }
@@ -71,6 +74,20 @@ export class FileJournal implements Journal {
     fsyncSync(this.#fd);
   }
 
+  /**
+   * Read the journal, repairing a torn tail.
+   *
+   * Reading is where recovery happens, so it is also the only place that may
+   * write: a partial final line is physically truncated away before anything
+   * is appended after it. Parsing around the tail is not enough. The file is
+   * opened in append mode, so the next record would be concatenated onto those
+   * orphaned bytes and the combined line would fail to parse on every later
+   * read - turning the loss of one unacknowledged record into the permanent
+   * loss of the whole journal.
+   *
+   * Truncating discards only the partial record, which no caller was ever told
+   * had succeeded.
+   */
   read(): JournalReadResult {
     if (!existsSync(this.#path)) return { records: [], truncatedTail: false };
     const raw = readFileSync(this.#path, 'utf8');
@@ -80,6 +97,17 @@ export class FileJournal implements Journal {
     // A complete file ends with a newline, so the final split element is ''.
     const tail = lines.pop();
     const truncatedTail = tail !== '';
+
+    if (truncatedTail) {
+      // Drop the orphaned bytes before any append can land behind them. An
+      // open descriptor would keep writing past the old end, so close first.
+      this.close();
+      // Byte length, not character count: truncateSync takes bytes, and a
+      // non-ASCII character in any field would otherwise cut the file in the
+      // wrong place.
+      const keep = Buffer.byteLength(raw, 'utf8') - Buffer.byteLength(tail as string, 'utf8');
+      truncateSync(this.#path, keep);
+    }
 
     const records: JournalRecord[] = [];
     for (const line of lines) {

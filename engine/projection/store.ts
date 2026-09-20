@@ -42,9 +42,12 @@ export class ProjectionStore {
   readonly #profile: ProofProfile;
   readonly #journal: Journal;
   /**
-   * Set when a mutation was applied in memory but could not be journaled. The
-   * store cannot un-apply an append-only history, so it refuses every later
-   * write rather than continue with memory and disk disagreeing.
+   * Set when a mutation could not be journaled. The mutation itself is undone,
+   * so no reader sees an entry the disk does not hold - but a failed append
+   * may still have put bytes on disk before it threw, so what the journal now
+   * holds is unknowable until it is read again. The store therefore refuses
+   * every later write rather than append behind a record it cannot account
+   * for.
    */
   #poisoned: string | undefined;
 
@@ -62,21 +65,32 @@ export class ProjectionStore {
   }
 
   /**
-   * Record a mutation that has already been applied.
+   * Record a mutation that has already been applied, and undo it if the append
+   * fails.
    *
-   * The order is deliberate. The kernel validates while applying, so only a
-   * known-good mutation is ever journaled. If the append then fails there is
-   * no way back - the history is append-only - so the store is poisoned and
-   * refuses further writes instead of drifting from its own journal.
+   * The order is deliberate: the kernel validates while applying, so only a
+   * known-good mutation is ever journaled. That leaves one window, and
+   * `rollback` closes it. If the append throws - a full disk, a read-only
+   * mount - the mutation is already visible in memory while the caller is
+   * being told it failed, and a restart would make it disappear. Undoing it
+   * means the two never disagree in the first place.
    *
-   * A crash between the apply and the fsync loses that one mutation, but the
-   * call had not returned, so no caller was told it succeeded. Replay produces
-   * a state that is consistent, just one mutation short.
+   * What cannot be un-applied is a *journaled* history. A mutation that never
+   * reached the disk is not history, and no caller was told it was.
+   *
+   * The store is still poisoned afterwards, because a failed append may have
+   * written bytes before throwing: memory is now correct, but what the journal
+   * holds is not knowable without reading it again.
+   *
+   * A crash between the apply and the fsync is the other case and needs no
+   * rollback: the process is gone, the call never returned, and replay
+   * produces a consistent state one mutation short.
    */
-  #record(record: JournalRecord): void {
+  #record(record: JournalRecord, rollback: () => void): void {
     try {
       this.#journal.append(record);
     } catch (error) {
+      rollback();
       this.#poisoned = error instanceof Error ? error.message : String(error);
       throw error;
     }
@@ -174,7 +188,10 @@ export class ProjectionStore {
     const record: Settlement = { ...gap, tokenId, status: 'OPEN' };
     this.#openGaps.set(key(tokenId), record.settlementId);
     this.#settlements.set(record.settlementId, record);
-    this.#record({ kind: 'gap-opened', tokenId: key(tokenId), settlement: settlementJson(record) });
+    this.#record({ kind: 'gap-opened', tokenId: key(tokenId), settlement: settlementJson(record) }, () => {
+      this.#openGaps.delete(key(tokenId));
+      this.#settlements.delete(record.settlementId);
+    });
     return record;
   }
 
@@ -190,10 +207,14 @@ export class ProjectionStore {
     if (settlementId === undefined) {
       return reject('NO_OPEN_GAP', `token ${tokenId} has no open gap`);
     }
-    const cancelled: Settlement = { ...this.settlement(settlementId), status: 'CANCELLED' };
+    const open = this.settlement(settlementId);
+    const cancelled: Settlement = { ...open, status: 'CANCELLED' };
     this.#openGaps.delete(key(tokenId));
     this.#settlements.set(settlementId, cancelled);
-    this.#record({ kind: 'gap-cancelled', tokenId: key(tokenId), settlementId });
+    this.#record({ kind: 'gap-cancelled', tokenId: key(tokenId), settlementId }, () => {
+      this.#openGaps.set(key(tokenId), settlementId);
+      this.#settlements.set(settlementId, open);
+    });
     return cancelled;
   }
 
@@ -251,7 +272,15 @@ export class ProjectionStore {
 
     // Past this line nothing refuses: the kernel validates before it appends,
     // so a rejected candidate leaves the height and the gap untouched.
-    const target = this.#projections.get(key(tokenId)) ?? new TokenProjection();
+    //
+    // Everything this mutates is captured first, so a failed journal append
+    // can put all of it back. The three mutations are one admission and have
+    // to fail as one.
+    const existing = this.#projections.get(key(tokenId));
+    const target = existing ?? new TokenProjection();
+    const priorHeight = adapter.acceptedHeight(tokenId);
+    const openGap = openId === undefined ? undefined : this.settlement(openId);
+
     const entry = target.admit(candidate);
     this.#projections.set(key(tokenId), target);
     adapter.advanceHeight(tokenId, material.remoteHeight);
@@ -263,13 +292,28 @@ export class ProjectionStore {
       gapClosed = true;
     }
 
-    this.#record({
-      kind: 'admitted',
-      tokenId: key(tokenId),
-      entry: entryJson(entry),
-      remoteHeight: material.remoteHeight.toString(),
-      settlementId: openId ?? null,
-    });
+    this.#record(
+      {
+        kind: 'admitted',
+        tokenId: key(tokenId),
+        entry: entryJson(entry),
+        remoteHeight: material.remoteHeight.toString(),
+        settlementId: openId ?? null,
+      },
+      () => {
+        target.undoLastAdmit();
+        // A token that had no projection before this admission goes back to
+        // having none, rather than keeping an empty one.
+        if (existing === undefined) this.#projections.delete(key(tokenId));
+        // Restoring, not advancing: the port is a setter and the prior height
+        // is what this admission had moved it off.
+        adapter.advanceHeight(tokenId, priorHeight);
+        if (openId !== undefined && openGap !== undefined) {
+          this.#openGaps.set(key(tokenId), openId);
+          this.#settlements.set(openId, openGap);
+        }
+      },
+    );
 
     return { entry, gapClosed, remoteHeight: material.remoteHeight };
   }

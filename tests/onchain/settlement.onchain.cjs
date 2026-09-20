@@ -53,6 +53,18 @@ describe("ERC-8415 settlement on chain", function () {
     return signer.signMessage(ethers.getBytes(binding));
   };
 
+  /** Sign whatever the deployed contract says a genesis proof may admit. */
+  const attestGenesis = async (tokenId, recordCommitment, registryReference, holder, effectiveAt, signer = attestor) => {
+    const binding = await settlement.initializationBinding(
+      tokenId,
+      recordCommitment,
+      registryReference,
+      holder,
+      effectiveAt
+    );
+    return signer.signMessage(ethers.getBytes(binding));
+  };
+
   const openGap = async (id, deadlineOffset = 3600n) => {
     const deadline = (await now()) + deadlineOffset;
     const tx = await settlement
@@ -89,10 +101,11 @@ describe("ERC-8415 settlement on chain", function () {
 
     assert.equal(await settlement.getAddress(), settlementAddress, "address precomputation drifted");
 
+    const genesisProof = await attestGenesis(TOKEN, commitment(1), reference(1), alice.address, FIRST_AT);
     await (
       await settlement
         .connect(registrar)
-        .initializeRegister(TOKEN, commitment(1), reference(1), alice.address, FIRST_AT)
+        .initializeRegister(TOKEN, commitment(1), reference(1), alice.address, FIRST_AT, genesisProof)
     ).wait();
   });
 
@@ -392,6 +405,67 @@ describe("ERC-8415 settlement on chain", function () {
     assert.equal(await projection.holderAsOf(TOKEN, SECOND_AT), bob.address);
   });
 
+  it("requires a bound proof for the register's first entry", async () => {
+    const other = 7n;
+
+    // The first entry names the register's opening holder and is as permanent
+    // as any other, so it is not exempt from the proof profile.
+    await assert.rejects(
+      settlement
+        .connect(registrar)
+        .initializeRegister(other, commitment(9), reference(9), alice.address, FIRST_AT, "0x"),
+      /ProofRefused/
+    );
+
+    // A signature from someone who is not the attestor.
+    const wrongSigner = await attestGenesis(other, commitment(9), reference(9), alice.address, FIRST_AT, outsider);
+    await assert.rejects(
+      settlement
+        .connect(registrar)
+        .initializeRegister(other, commitment(9), reference(9), alice.address, FIRST_AT, wrongSigner),
+      /ProofRefused/
+    );
+
+    // A genesis proof is bound to the holder it names, so it cannot be
+    // redirected to another one.
+    const forAlice = await attestGenesis(other, commitment(9), reference(9), alice.address, FIRST_AT);
+    await assert.rejects(
+      settlement
+        .connect(registrar)
+        .initializeRegister(other, commitment(9), reference(9), bob.address, FIRST_AT, forAlice),
+      /ProofRefused/
+    );
+
+    // Nothing was written by any of the refusals.
+    assert.equal(await projection.entryCount(other), 0n);
+
+    // The bound proof admits, and only then.
+    await (
+      await settlement
+        .connect(registrar)
+        .initializeRegister(other, commitment(9), reference(9), alice.address, FIRST_AT, forAlice)
+    ).wait();
+    assert.equal(await projection.entryCount(other), 1n);
+    assert.equal(await projection.holderAsOf(other, FIRST_AT), alice.address);
+
+    // Still no finality: one entry means the whole span is provisional.
+    assert.equal(await projection.isFinalAsOf(other, FIRST_AT), false);
+  });
+
+  it("does not let a genesis proof be replayed as an admission", async () => {
+    await openGap(gapId(1));
+
+    // The genesis binding carries version 1 and no settlement; an admission
+    // binding carries version 2 or more, so neither can stand in for the other.
+    const genesis = await attestGenesis(TOKEN, commitment(2), reference(2), bob.address, SECOND_AT);
+    await assert.rejects(
+      settlement.connect(relayer).finalizeSettlement(gapId(1), commitment(2), reference(2), SECOND_AT, genesis),
+      /ProofRefused/
+    );
+
+    assert.equal(await projection.entryCount(TOKEN), 1n);
+  });
+
   it("does not let settlement reach a register it is not the authority of", async () => {
     const otherFactory = await ethers.getContractFactory("RegisterProjection", deployer);
     const foreign = await otherFactory.deploy(REGISTER_ID, deployer.address);
@@ -406,8 +480,19 @@ describe("ERC-8415 settlement on chain", function () {
     );
     await detached.waitForDeployment();
 
+    const binding = await detached.initializationBinding(
+      TOKEN,
+      commitment(1),
+      reference(1),
+      alice.address,
+      FIRST_AT
+    );
+    const proof = await attestor.signMessage(ethers.getBytes(binding));
+
     await assert.rejects(
-      detached.connect(registrar).initializeRegister(TOKEN, commitment(1), reference(1), alice.address, FIRST_AT),
+      detached
+        .connect(registrar)
+        .initializeRegister(TOKEN, commitment(1), reference(1), alice.address, FIRST_AT, proof),
       /NotSourceAuthority/
     );
   });

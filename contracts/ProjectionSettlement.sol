@@ -146,25 +146,70 @@ contract ProjectionSettlement is IProjectionSettlement {
         return _authorities[account];
     }
 
+    /// @notice What a proof for a register's first entry is allowed to admit.
+    ///
+    /// Same field layout as `admissionBinding`, with the settlement, snapshot
+    /// and previous commitment zero because invariant 1 says the first entry
+    /// has no predecessor. The version is 1, and an admission binding always
+    /// carries 2 or more, so a genesis proof can never be replayed as an
+    /// admission or the other way round.
+    function initializationBinding(
+        uint256 tokenId,
+        bytes32 recordCommitment,
+        bytes32 registryReference,
+        address holder,
+        uint64 effectiveAt
+    ) public view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                _BINDING_DOMAIN,
+                block.chainid,
+                address(this),
+                tokenId,
+                bytes32(0),
+                bytes32(0),
+                holder,
+                bytes32(0),
+                recordCommitment,
+                uint64(1),
+                effectiveAt,
+                registryReference
+            )
+        );
+    }
+
     /// @notice Write the register's first entry for a token.
     ///
     /// This exists because the register's source authority is immutable and is
     /// this contract: if settlement could not initialize, nothing could, and
     /// no gap would ever have a register to close over.
     ///
-    /// It is not a gap and carries no proof. Invariant 1 says the first entry
-    /// has version 1 and no predecessor, so there is no preceding interval for
-    /// a settlement to cover and nothing for evidence to be bound to. It also
-    /// confers no finality: until a second entry is admitted, the register's
-    /// whole span is provisional.
+    /// It is not a gap - invariant 1 says the first entry has no predecessor,
+    /// so there is no preceding interval for a settlement to cover - but it
+    /// still carries a proof. The first entry names the register's opening
+    /// holder and is as permanent as any other, and a later admission closes
+    /// the interval it opened, making it final. An entry nobody had to prove
+    /// would therefore become final history, and every claim that admitted
+    /// history came from evidence the configured profile accepted would be
+    /// false for exactly the interval it covers.
+    ///
+    /// It confers no finality of its own: until a second entry is admitted,
+    /// the register's whole span is provisional.
     function initializeRegister(
         uint256 tokenId,
         bytes32 recordCommitment,
         bytes32 registryReference,
         address holder,
-        uint64 effectiveAt
+        uint64 effectiveAt,
+        bytes calldata proofData
     ) external {
         if (!isSettlementAuthority(tokenId, msg.sender)) revert NotSettlementAuthority();
+        if (recordCommitment == bytes32(0)) revert CommitmentInvalid();
+        if (holder == address(0)) revert HolderInvalid();
+
+        bytes32 binding = initializationBinding(tokenId, recordCommitment, registryReference, holder, effectiveAt);
+        if (!_verifier.verifyAdmission(binding, proofData)) revert ProofRefused();
+
         _admission.initialize(tokenId, recordCommitment, registryReference, holder, effectiveAt);
     }
 

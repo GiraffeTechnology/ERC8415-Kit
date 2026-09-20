@@ -264,11 +264,15 @@ notes in `engine/persistence/README.md`.
 | Gap state and its outcome survive a restart | `store.replayGapOpened` / `replayGapCancelled` | gap state and its outcome survive a restart | delivered |
 | An admission that closed a gap replays closed | `store.replayAdmitted` | an admission that closed a gap replays with the gap closed | delivered |
 | A torn final line is discarded, earlier records survive | `FileJournal.read` | a torn final line is discarded, and the records before it survive | delivered |
+| Recovery truncates the torn tail so later appends are safe | `FileJournal.read` | a recovered journal can be appended to and reread | delivered |
 | uint64 journaled as a decimal string | `entryJson` / `settlementJson` | every journaled uint64 is a decimal string, never a JSON number | delivered |
 | A tampered journal fails to replay | kernel invariants on replay | a tampered journal fails to replay rather than loading quietly | delivered |
 | Replay appends nothing | replay entry points | replay does not extend the journal it read | delivered |
 | A restored store keeps journaling | `restoreProjectionStore` | a restored store keeps journaling new mutations | delivered |
 | An unjournalable store fails closed | `#poisoned`, `STORE_NOT_WRITABLE` | a store that cannot journal refuses further writes instead of drifting | delivered |
+| A failed append undoes the admission it could not record | `#record` rollback, `TokenProjection.undoLastAdmit` | an admission that cannot be journaled is undone rather than left in memory | delivered |
+| A failed append undoes an opened gap | `#record` rollback | a gap whose open cannot be journaled is undone | delivered |
+| A failed append leaves a cancelled gap open | `#record` rollback | a cancellation that cannot be journaled leaves the gap open | delivered |
 
 Not delivered by this stage: a database-backed store, concurrent-writer
 safety, and recovery evidence from a real restart under load. The journal is a
@@ -310,7 +314,7 @@ the failure mode these vectors close.
 
 ## Verification and outstanding acceptance
 
-`npm run verify`: typecheck, 161 passing in-process Node tests and 26 passing
+`npm run verify`: typecheck, 165 passing in-process Node tests and 28 passing
 on-chain tests, including the Python SDK suite, authenticated loopback
 integration, journal restart and crash recovery, Solidity compilation, the
 deployed projection and settlement contracts, and shared conformance vectors.
@@ -343,6 +347,8 @@ with `npm run test:onchain`.
 | Register invariants still apply through settlement | `RegisterProjection.admit` | still enforces the register's invariants through settlement | delivered |
 | Cancellation settles nothing | `cancelSettlement` | cancels only after the deadline, only by the initiator, and settles nothing | delivered |
 | A closed gap cannot be closed again | `GapStatus` | refuses to close a gap that is no longer open, and reopens cleanly | delivered |
+| The register's first entry requires a bound proof | `initializationBinding`, `initializeRegister` | requires a bound proof for the register's first entry | delivered |
+| A genesis proof cannot be replayed as an admission | version 1 vs 2+ in the binding | does not let a genesis proof be replayed as an admission | delivered |
 | Settlement cannot write a register it does not own | `NotSourceAuthority` | does not let settlement reach a register it is not the authority of | delivered |
 
 `GapStatus.SUPERSEDED` and `SettlementSuperseded` are declared by the frozen
@@ -365,9 +371,9 @@ and so does CI on both Node 22 and Node 24.
 
 | Metric | Threshold | Measured | Status |
 | --- | --- | --- | --- |
-| Lines | 80% | 96.82% | delivered |
-| Branches | 80% | 87.82% | delivered |
-| Functions | 80% | 95.22% | delivered |
+| Lines | 80% | 96.88% | delivered |
+| Branches | 80% | 87.36% | delivered |
+| Functions | 80% | 95.69% | delivered |
 
 The measurement excludes `tests/**`, so the figures describe the source tree
 and not the suite measuring itself. The threshold was checked against a

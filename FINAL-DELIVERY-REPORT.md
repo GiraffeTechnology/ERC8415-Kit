@@ -48,7 +48,7 @@ as this application tree or independently verify MPT/storage proofs.
 
 ```sh
 npm ci
-npm run verify                     # typecheck + 161 Node tests + 26 on-chain tests
+npm run verify                     # typecheck + 165 Node tests + 28 on-chain tests
 python3 -B sdk/python/test_client.py # standalone Python checks
 ```
 
@@ -88,8 +88,8 @@ do not establish production delivery.
 
 The plan's 80% coverage target is no longer unmeasured. `npm run coverage`
 measures the source tree, excluding the tests themselves, and fails below 80%
-on lines, branches or functions. The current tree reports 96.82% lines, 87.82%
-branches and 95.22% functions. `npm run verify` runs it, as does CI.
+on lines, branches or functions. The current tree reports 96.88% lines, 87.36%
+branches and 95.69% functions. `npm run verify` runs it, as does CI.
 
 No runtime dependencies were added. TypeScript, Node types, solc,
 ethereum-cryptography and, for the on-chain suite only, hardhat and ethers
