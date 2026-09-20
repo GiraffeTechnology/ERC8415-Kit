@@ -11,11 +11,15 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test \"tests/**/*.test.ts\"",
-    "verify": "npm run typecheck && npm test"
+    "verify": "npm run typecheck && npm test && npm run test:onchain",
+    "test:onchain": "hardhat test"
   },
   "devDependencies": {
+    "@nomicfoundation/hardhat-ethers": "^3.0.8",
     "@types/node": "^22.0.0",
     "ethereum-cryptography": "^3.2.0",
+    "ethers": "^6.17.0",
+    "hardhat": "^2.29.0",
     "solc": "^0.8.37",
     "typescript": "^5.9.0"
   }
