@@ -289,11 +289,16 @@ the failure mode these vectors close.
 
 ## Verification and outstanding acceptance
 
-`npm run verify`: typecheck and 151 passing Node tests, including the Python SDK
-suite, authenticated loopback integration, Solidity compilation and shared
-conformance vectors. This is local Node 24 validation; CI also targets Node 22.
+`npm run verify`: typecheck, 151 passing in-process Node tests and 12 on-chain
+tests, including the Python SDK suite, authenticated loopback integration,
+Solidity compilation, shared conformance vectors and the deployed-contract run
+in "Stage 3 — on-chain delivery" above. This is local Node 24 validation; CI
+also targets Node 22.
 
-The full stage plan remains incomplete. Missing evidence includes a deployed
-contract transaction/event run, measured coverage against the plan's 80% target,
-a deployed console session provider and production persistence/recovery. Docker
-and live-chain integration were not exercised during these corrections.
+The full stage plan remains incomplete. The deployed contract transaction and
+event run is delivered, but against an in-process chain, so live-chain gas
+economics, reorg behaviour and a real registrar's operations remain
+unexercised. Missing evidence also includes an on-chain `IProjectionSettlement`
+implementation, measured coverage against the plan's 80% target, a deployed
+console session provider and production persistence/recovery. Docker was not
+exercised during these corrections.
