@@ -3,6 +3,7 @@ import { reject, ProjectionError } from './errors.ts';
 import { ZERO_ADDRESS, ZERO_BYTES32, type Address, type Bytes32, type CandidateEntry, type Instant, type ProjectionEntry, type Settlement, type TokenId } from './types.ts';
 import type { ProofMaterial, ProofProfile, ProofProfileRegistry } from '../proof/profile.ts';
 import type { RemoteChainAdapter } from '../ports.ts';
+import { nullJournal, type Journal, type JournalRecord } from '../persistence/journal.ts';
 
 export interface AdmissionResult {
   readonly entry: ProjectionEntry;
@@ -17,6 +18,12 @@ export interface StoreOptions {
   readonly verificationProfile: Bytes32;
   readonly profiles: ProofProfileRegistry;
   readonly adapter: RemoteChainAdapter;
+  /**
+   * Where mutations are recorded so they survive a restart. Defaults to a
+   * journal that keeps nothing, so an in-process store behaves exactly as
+   * before.
+   */
+  readonly journal?: Journal;
 }
 
 /**
@@ -33,12 +40,52 @@ export class ProjectionStore {
   readonly #settlements = new Map<Bytes32, Settlement>();
   readonly #options: StoreOptions;
   readonly #profile: ProofProfile;
+  readonly #journal: Journal;
+  /**
+   * Set when a mutation was applied in memory but could not be journaled. The
+   * store cannot un-apply an append-only history, so it refuses every later
+   * write rather than continue with memory and disk disagreeing.
+   */
+  #poisoned: string | undefined;
 
   constructor(options: StoreOptions) {
     const profile = options.profiles.get(options.verificationProfile);
     if (profile === undefined) throw new Error('configured verification profile is not registered');
     this.#options = Object.freeze({ ...options });
     this.#profile = profile;
+    this.#journal = options.journal ?? nullJournal;
+  }
+
+  /** Why the store stopped accepting writes, or undefined while it is healthy. */
+  get poisonedReason(): string | undefined {
+    return this.#poisoned;
+  }
+
+  /**
+   * Record a mutation that has already been applied.
+   *
+   * The order is deliberate. The kernel validates while applying, so only a
+   * known-good mutation is ever journaled. If the append then fails there is
+   * no way back - the history is append-only - so the store is poisoned and
+   * refuses further writes instead of drifting from its own journal.
+   *
+   * A crash between the apply and the fsync loses that one mutation, but the
+   * call had not returned, so no caller was told it succeeded. Replay produces
+   * a state that is consistent, just one mutation short.
+   */
+  #record(record: JournalRecord): void {
+    try {
+      this.#journal.append(record);
+    } catch (error) {
+      this.#poisoned = error instanceof Error ? error.message : String(error);
+      throw error;
+    }
+  }
+
+  #assertWritable(): void {
+    if (this.#poisoned !== undefined) {
+      reject('STORE_NOT_WRITABLE', `the store stopped accepting writes: ${this.#poisoned}`);
+    }
   }
 
   get registerId(): Bytes32 {
@@ -120,12 +167,14 @@ export class ProjectionStore {
    * lives here because admission has to be able to close it atomically.
    */
   openGap(tokenId: TokenId, gap: Omit<Settlement, 'status' | 'tokenId'>): Settlement {
+    this.#assertWritable();
     if (this.#openGaps.has(key(tokenId))) {
       reject('GAP_ALREADY_OPEN', `token ${tokenId} already has an open gap`);
     }
     const record: Settlement = { ...gap, tokenId, status: 'OPEN' };
     this.#openGaps.set(key(tokenId), record.settlementId);
     this.#settlements.set(record.settlementId, record);
+    this.#record({ kind: 'gap-opened', tokenId: key(tokenId), settlement: settlementJson(record) });
     return record;
   }
 
@@ -136,6 +185,7 @@ export class ProjectionStore {
    * was provisional stays provisional.
    */
   cancelGap(tokenId: TokenId): Settlement {
+    this.#assertWritable();
     const settlementId = this.#openGaps.get(key(tokenId));
     if (settlementId === undefined) {
       return reject('NO_OPEN_GAP', `token ${tokenId} has no open gap`);
@@ -143,6 +193,7 @@ export class ProjectionStore {
     const cancelled: Settlement = { ...this.settlement(settlementId), status: 'CANCELLED' };
     this.#openGaps.delete(key(tokenId));
     this.#settlements.set(settlementId, cancelled);
+    this.#record({ kind: 'gap-cancelled', tokenId: key(tokenId), settlementId });
     return cancelled;
   }
 
@@ -156,6 +207,7 @@ export class ProjectionStore {
    * written, and none of those three can fail.
    */
   admit(tokenId: TokenId, candidate: CandidateEntry, material: ProofMaterial): AdmissionResult {
+    this.#assertWritable();
     validateCandidateShape(candidate);
     const profile = this.#resolveProfile(material.profile);
     const adapter = this.#options.adapter;
@@ -211,7 +263,54 @@ export class ProjectionStore {
       gapClosed = true;
     }
 
+    this.#record({
+      kind: 'admitted',
+      tokenId: key(tokenId),
+      entry: entryJson(entry),
+      remoteHeight: material.remoteHeight.toString(),
+      settlementId: openId ?? null,
+    });
+
     return { entry, gapClosed, remoteHeight: material.remoteHeight };
+  }
+
+  /**
+   * Replay entry points. These reapply a mutation that was already admitted
+   * and already journaled, so they append nothing: replay must reproduce the
+   * journal, never extend it.
+   *
+   * They deliberately skip proof verification and the remote-height checks.
+   * Those decisions belong to the moment of admission; re-deciding them at
+   * restart would let a rotated profile or a pruned remote height erase an
+   * entry the register already confirmed. The kernel's own invariants still
+   * apply, because the entry goes back through the same append, so a tampered
+   * journal fails to replay rather than loading quietly.
+   */
+  replayAdmitted(
+    tokenId: TokenId,
+    candidate: CandidateEntry,
+    remoteHeight: bigint,
+    settlementId: Bytes32 | null,
+  ): ProjectionEntry {
+    const target = this.#projections.get(key(tokenId)) ?? new TokenProjection();
+    const entry = target.admit(candidate);
+    this.#projections.set(key(tokenId), target);
+    this.#options.adapter.advanceHeight(tokenId, remoteHeight);
+    if (settlementId !== null) {
+      this.#openGaps.delete(key(tokenId));
+      this.#settlements.set(settlementId, { ...this.settlement(settlementId), status: 'ADMITTED' });
+    }
+    return entry;
+  }
+
+  replayGapOpened(record: Settlement): void {
+    this.#openGaps.set(key(record.tokenId), record.settlementId);
+    this.#settlements.set(record.settlementId, record);
+  }
+
+  replayGapCancelled(tokenId: TokenId, settlementId: Bytes32): void {
+    this.#openGaps.delete(key(tokenId));
+    this.#settlements.set(settlementId, { ...this.settlement(settlementId), status: 'CANCELLED' });
   }
 
   #resolveProfile(id: string): ProofProfile {
@@ -231,5 +330,27 @@ export class ProjectionStore {
 }
 
 const key = (tokenId: TokenId): string => tokenId.toString();
+
+/** Journal shapes. Every uint64 is a decimal string so nothing rounds. */
+const entryJson = (entry: ProjectionEntry): Record<string, string> => ({
+  version: entry.version.toString(),
+  holder: entry.holder,
+  effectiveAt: entry.effectiveAt.toString(),
+  supersededAt: entry.supersededAt.toString(),
+  recordCommitment: entry.recordCommitment,
+  previousCommitment: entry.previousCommitment,
+  registryReference: entry.registryReference,
+});
+
+const settlementJson = (record: Settlement): Record<string, string> => ({
+  settlementId: record.settlementId,
+  tokenId: record.tokenId.toString(),
+  initiator: record.initiator,
+  expectedHolder: record.expectedHolder,
+  snapshotHash: record.snapshotHash,
+  openedAt: record.openedAt.toString(),
+  deadline: record.deadline.toString(),
+  status: record.status,
+});
 
 export { ProjectionError };

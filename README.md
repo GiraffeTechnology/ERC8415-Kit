@@ -46,13 +46,13 @@ The Solidity tree currently contains interfaces and selector helpers only. There
 | Stage | Verified implementation | Remaining acceptance work | Status |
 | --- | --- | --- | --- |
 | 0 Foundation | Repository layout, Docker files, CI and structure tests | Container execution was not rerun for the current corrections | Foundation present |
-| 1 Projection Core | In-process kernel/store, temporal API and 20 mandatory semantic tests | Durable storage and deployed runtime are outside the current implementation | In-process complete |
+| 1 Projection Core | In-process kernel/store, temporal API, 20 mandatory semantic tests, and a file-backed append-only journal with replay and crash recovery | Deployed runtime; the journal is not exercised against a database or under concurrent writers | In-process complete; persistence journal-backed |
 | 2 Verification Engine | Merkle, Ed25519 and mock zk profiles with binding/replay checks | Production succinct verifier | Test profiles complete |
 | 3 ERC-8415 Adapter | Frozen interfaces, ABI/selector checks, fake-RPC reader and application-root adapter | Concrete deployed contracts, transaction submission, receipt/event monitoring, deploy → transact → verify-event, and Ethereum MPT proof verification | **Partial** |
 | 4 Settlement MVP | In-process open/admit/cancel workflow, authority and deadline rules | On-chain execution and chain acceptance depend on Stage 3 | In-process complete |
 | 5 Oracle/Application SDK | Authenticated JS/Python clients, pagination, uint64 handling and separate temporal signals | Same-transaction on-chain reads remain an integration responsibility | Code complete |
 | 6 Institutional Console | Read-only views, roles, timeline, authentication callback and output escaping | Deployed session provider/login flow and deployed acceptance | Code complete; deployment evidence missing |
-| 7 Production Infrastructure | API-key hashing, tenant isolation, refusal metrics and audit export primitives | Durable persistence, operational deployment, recovery evidence and measured 80% coverage | Primitives only |
+| 7 Production Infrastructure | API-key hashing, tenant isolation, refusal metrics, audit export primitives, and journal-based durable persistence | Operational deployment, recovery evidence from a real restart under load, and measured 80% coverage | Primitives only |
 
 The complete Stage 0–7 delivery gate is therefore **not complete**. This conclusion is based on the stage PRD, the source tree, tests, CI configuration and delivery evidence, not on README text alone.
 

@@ -252,6 +252,27 @@ real transactions. Run with `npm run test:onchain`.
 Not delivered by this stage: an on-chain `IProjectionSettlement`
 implementation, and any live network. The chain is in-process, so gas
 economics, reorg behaviour and a real registrar's operations are unexercised.
+## Durable storage
+
+An append-only journal, `fsync`ed on every append, replayed on open. Design
+notes in `engine/persistence/README.md`.
+
+| Requirement | Implementation | Test (`persistence.test.ts`) | Status |
+| --- | --- | --- | --- |
+| A store without a journal is unchanged | `nullJournal` default | a store with no journal behaves exactly as before | delivered |
+| Admitted entries survive a restart | `journal.ts`, `restore.ts` | admitted entries survive a restart | delivered |
+| Gap state and its outcome survive a restart | `store.replayGapOpened` / `replayGapCancelled` | gap state and its outcome survive a restart | delivered |
+| An admission that closed a gap replays closed | `store.replayAdmitted` | an admission that closed a gap replays with the gap closed | delivered |
+| A torn final line is discarded, earlier records survive | `FileJournal.read` | a torn final line is discarded, and the records before it survive | delivered |
+| uint64 journaled as a decimal string | `entryJson` / `settlementJson` | every journaled uint64 is a decimal string, never a JSON number | delivered |
+| A tampered journal fails to replay | kernel invariants on replay | a tampered journal fails to replay rather than loading quietly | delivered |
+| Replay appends nothing | replay entry points | replay does not extend the journal it read | delivered |
+| A restored store keeps journaling | `restoreProjectionStore` | a restored store keeps journaling new mutations | delivered |
+| An unjournalable store fails closed | `#poisoned`, `STORE_NOT_WRITABLE` | a store that cannot journal refuses further writes instead of drifting | delivered |
+
+Not delivered by this stage: a database-backed store, concurrent-writer
+safety, and recovery evidence from a real restart under load. The journal is a
+single-process file.
 
 ## Shared conformance vectors
 
