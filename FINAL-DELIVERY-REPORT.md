@@ -48,7 +48,7 @@ as this application tree or independently verify MPT/storage proofs.
 
 ```sh
 npm ci
-npm run verify                     # typecheck + 151 passing Node tests
+npm run verify                     # typecheck + 161 Node tests + 26 on-chain tests
 python3 -B sdk/python/test_client.py # standalone Python checks
 ```
 
@@ -64,21 +64,28 @@ mapping is in `docs/DELIVERY-EVIDENCE.md`.
 
 ## Limits and outstanding work
 
-The stores are in-process and the zk profile is a mock. The read adapter is
-still exercised against a fake RPC node.
+The zk profile is a mock, and the read adapter is still exercised against a
+fake RPC node.
 
-A deployed EVM transaction and event flow is now validated: `RegisterProjection`
-is deployed, admissions are submitted as mined transactions, and events are
-read back both from receipts and from the chain's log index. That closes the
-deployed-contract, transaction-submission and event-verification gaps for
-projection conformance.
+A deployed EVM transaction and event flow is validated. `RegisterProjection` is
+deployed, `ProjectionSettlement` is deployed as its sole writer, gaps are
+opened, closed and cancelled by mined transactions, admission proofs are
+signatures recovered on chain, and events are read back both from receipts and
+from the chain's log index. That closes the deployed-contract,
+transaction-submission and event-verification gaps for both frozen interfaces.
 
-Still outstanding: an on-chain `IProjectionSettlement` implementation; any live
-network, so gas economics and reorg behaviour are unexercised; durable storage;
-a console session provider behind the injected `authenticate` port; a container
-run; and the plan's 80% coverage target, which has not been measured. These
-gaps remain acceptance work; passing unit tests and an in-process chain do not
-establish production delivery.
+Stores are no longer only in-process: the projection is backed by an
+append-only journal, `fsync`ed on every append and replayed on open. It is a
+single-process file, so a database-backed store and concurrent-writer safety
+are not covered.
+
+Still outstanding: any live network, so gas economics, reorg behaviour and a
+real registrar's operations are unexercised; a succinct verifier behind the
+proof port; a console session provider behind the injected `authenticate`
+port; a container run; recovery evidence from a real restart under load; and
+the plan's 80% coverage target, which has not been measured. These gaps remain
+acceptance work; passing unit tests and an in-process chain do not establish
+production delivery.
 
 No runtime dependencies were added. TypeScript, Node types, solc,
 ethereum-cryptography and, for the on-chain suite only, hardhat and ethers
