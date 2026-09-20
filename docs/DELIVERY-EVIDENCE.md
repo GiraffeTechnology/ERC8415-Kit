@@ -262,6 +262,39 @@ Not delivered by this stage: an on-chain `IProjectionSettlement`
 implementation, and any live network. The chain is in-process, so gas
 economics, reorg behaviour and a real registrar's operations are unexercised.
 
+## Durable storage
+
+An append-only journal, `fsync`ed on every append, replayed on open. Design
+notes in `engine/persistence/README.md`.
+
+| Requirement | Implementation | Test (`persistence.test.ts`) | Status |
+| --- | --- | --- | --- |
+| A store without a journal is unchanged | `nullJournal` default | a store with no journal behaves exactly as before | delivered |
+| Admitted entries survive a restart | `journal.ts`, `restore.ts` | admitted entries survive a restart | delivered |
+| Gap state and its outcome survive a restart | `store.replayGapOpened` / `replayGapCancelled` | gap state and its outcome survive a restart | delivered |
+| An admission that closed a gap replays closed | `store.replayAdmitted` | an admission that closed a gap replays with the gap closed | delivered |
+| A torn final line is discarded, earlier records survive | `FileJournal.read` | a torn final line is discarded, and the records before it survive | delivered |
+| uint64 journaled as a decimal string | `entryJson` / `settlementJson` | every journaled uint64 is a decimal string, never a JSON number | delivered |
+| A tampered journal fails to replay | kernel invariants on replay | a tampered journal fails to replay rather than loading quietly | delivered |
+| Replay appends nothing | replay entry points | replay does not extend the journal it read | delivered |
+| A restored store keeps journaling | `restoreProjectionStore` | a restored store keeps journaling new mutations | delivered |
+| An unjournalable store fails closed | `#poisoned`, `STORE_NOT_WRITABLE` | a store that cannot journal refuses further writes instead of drifting | delivered |
+| An append after a torn tail is not glued onto the fragment | `FileJournal.#open` truncates before the first write; `#write` loops `writeSync` | an append after a torn tail does not glue itself onto the fragment | delivered |
+| A journal is bound to its projection's identity | header record; `ProjectionStore` binds on construction | a journal is refused by a store for a different projection | delivered |
+| An unheadered journal is not replayed | `FileJournal.bind` | a journal with no identity header is not replayed | delivered |
+| Replay enforces one open gap per token | `store.replayGapOpened` | a journal opening two gaps on one token fails to replay | delivered |
+| Replay enforces that a cancellation closes an open gap | `store.replayGapCancelled` | a journal cancelling a gap that is not open fails to replay | delivered |
+
+Replay does not re-verify proofs, deliberately: re-deciding admission at
+restart would let a rotated profile or a pruned remote height erase an entry
+the register already confirmed. The identity header is what stands in for that
+check — it binds a journal to the register, verification profile and chain its
+entries were admitted under, so a reused path is refused instead of replayed.
+
+Not delivered by this stage: a database-backed store, concurrent-writer
+safety, and recovery evidence from a real restart under load. The journal is a
+single-process file.
+
 ## Shared conformance vectors
 
 `conformance/projection-vectors.json` is the authoritative copy of the
@@ -298,7 +331,7 @@ the failure mode these vectors close.
 
 ## Verification and outstanding acceptance
 
-`npm run verify`: typecheck, 151 passing in-process Node tests and 12 on-chain
+`npm run verify`: typecheck, 166 passing in-process Node tests and 12 on-chain
 tests, including the Python SDK suite, authenticated loopback integration,
 Solidity compilation, shared conformance vectors and the deployed-contract run
 in "Stage 3 — on-chain delivery" above. This is local Node 24 validation; CI

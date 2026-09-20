@@ -19,7 +19,7 @@ profile before appending an entry and closing an associated gap.
 | 4 Settlement | authority, bounded deadlines, initiator-only cancellation after expiry | on-chain execution is part of outstanding Stage 3 work |
 | 5 SDK | authenticated JS/Python clients, atomic server resolution and full pagination | HTTP snapshots do not replace same-transaction on-chain reads |
 | 6 Console | authenticated transport boundary, role-gated views and timeline | session provider/login integration and deployed acceptance |
-| 7 Infrastructure | tenant keys, isolation, metrics and audit export primitives | durable storage, deployment and recovery evidence |
+| 7 Infrastructure | tenant keys, isolation, metrics, audit export primitives and a journal-backed durable store | a database-backed store, concurrent-writer safety, deployment and recovery evidence from a real restart under load |
 
 ## PR #8 corrections
 
@@ -48,7 +48,7 @@ as this application tree or independently verify MPT/storage proofs.
 
 ```sh
 npm ci
-npm run verify                     # typecheck + 151 in-process + 12 on-chain tests
+npm run verify                     # typecheck + 166 in-process + 12 on-chain tests
 python3 -B sdk/python/test_client.py # standalone Python checks
 ```
 
@@ -75,10 +75,17 @@ read back both from receipts and from the chain's log index. That closes the
 deployed-contract, transaction-submission and event-verification gaps for
 projection conformance.
 
-Still outstanding: an on-chain `IProjectionSettlement` implementation; any live
-network, so gas economics and reorg behaviour are unexercised; durable storage;
-a console session provider behind the injected `authenticate` port; a container
-run; and the plan's 80% coverage target, which has not been measured. These
+Mutations are now durable: an append-only journal, fsynced before a caller is
+told anything succeeded, replayed on open, bound by a header to the register,
+verification profile and chain its entries were admitted under. It is a
+single-process file, so a database-backed store, concurrent-writer safety and
+recovery evidence from a real restart under load remain outstanding.
+
+Still outstanding beyond that: an on-chain `IProjectionSettlement`
+implementation; any live network, so gas economics and reorg behaviour are
+unexercised; a console session provider behind the injected `authenticate`
+port; a container run; and the plan's 80% coverage target, which has not been
+measured. These
 gaps remain acceptance work; passing unit tests and an in-process chain do not
 establish production delivery.
 
