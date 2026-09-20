@@ -261,6 +261,7 @@ put a verifier-backed settlement contract in front of this one.
 Not delivered by this stage: an on-chain `IProjectionSettlement`
 implementation, and any live network. The chain is in-process, so gas
 economics, reorg behaviour and a real registrar's operations are unexercised.
+
 ## Durable storage
 
 An append-only journal, `fsync`ed on every append, replayed on open. Design
@@ -273,7 +274,6 @@ notes in `engine/persistence/README.md`.
 | Gap state and its outcome survive a restart | `store.replayGapOpened` / `replayGapCancelled` | gap state and its outcome survive a restart | delivered |
 | An admission that closed a gap replays closed | `store.replayAdmitted` | an admission that closed a gap replays with the gap closed | delivered |
 | A torn final line is discarded, earlier records survive | `FileJournal.read` | a torn final line is discarded, and the records before it survive | delivered |
-| Recovery truncates the torn tail so later appends are safe | `FileJournal.read` | a recovered journal can be appended to and reread | delivered |
 | uint64 journaled as a decimal string | `entryJson` / `settlementJson` | every journaled uint64 is a decimal string, never a JSON number | delivered |
 | A tampered journal fails to replay | kernel invariants on replay | a tampered journal fails to replay rather than loading quietly | delivered |
 | Replay appends nothing | replay entry points | replay does not extend the journal it read | delivered |
@@ -282,10 +282,58 @@ notes in `engine/persistence/README.md`.
 | A failed append undoes the admission it could not record | `#record` rollback, `TokenProjection.undoLastAdmit` | an admission that cannot be journaled is undone rather than left in memory | delivered |
 | A failed append undoes an opened gap | `#record` rollback | a gap whose open cannot be journaled is undone | delivered |
 | A failed append leaves a cancelled gap open | `#record` rollback | a cancellation that cannot be journaled leaves the gap open | delivered |
+| An append after a torn tail is not glued onto the fragment | `FileJournal.#open` truncates before the first write; `#write` loops `writeSync` | an append after a torn tail does not glue itself onto the fragment | delivered |
+| A journal is bound to its projection's identity | header record; `ProjectionStore` binds on construction | a journal is refused by a store for a different projection | delivered |
+| An unheadered journal is not replayed | `FileJournal.bind` | a journal with no identity header is not replayed | delivered |
+| Replay enforces one open gap per token | `store.replayGapOpened` | a journal opening two gaps on one token fails to replay | delivered |
+| Replay enforces that a cancellation closes an open gap | `store.replayGapCancelled` | a journal cancelling a gap that is not open fails to replay | delivered |
+
+Replay does not re-verify proofs, deliberately: re-deciding admission at
+restart would let a rotated profile or a pruned remote height erase an entry
+the register already confirmed. The identity header is what stands in for that
+check — it binds a journal to the register, verification profile and chain its
+entries were admitted under, so a reused path is refused instead of replayed.
 
 Not delivered by this stage: a database-backed store, concurrent-writer
 safety, and recovery evidence from a real restart under load. The journal is a
 single-process file.
+
+## Stage 4 — on-chain settlement
+
+A concrete `contracts/ProjectionSettlement.sol`, deployed as the register's
+sole writer, with proof verification behind `ISettlementProofVerifier`. Run
+with `npm run test:onchain`.
+
+| Requirement | Implementation | Test (`tests/onchain/settlement.onchain.cjs`) | Status |
+| --- | --- | --- | --- |
+| Settlement is the register's only writer | immutable `sourceAuthority` | deploys as the register's only writer | delivered |
+| Deployed code advertises `0xf4a7d71b` and not `0x6309e170` | `supportsInterface` | advertises the frozen settlement identifier from the deployed code | delivered |
+| Opening a gap records it without changing finality | `beginSettlement` | opens a gap and reports it as an open gap, not as a loss of finality | delivered |
+| Settlement authority is separate from ownership | `isSettlementAuthority` | refuses to open a gap for anyone but a settlement authority | delivered |
+| Deadline in the future and within the period | `beginSettlement` | refuses a deadline in the past or beyond the settlement period | delivered |
+| One open gap per token, one record per identifier | `_openGap`, `_settlements` | allows one open gap per token and one record per identifier | delivered |
+| Closing a gap admits through the register | `finalizeSettlement` | closes a gap by admitting the entry, and the register records it | delivered |
+| Any relayer may submit a bound proof | no caller check on finalize | closes a gap by admitting the entry, and the register records it | delivered |
+| Closing a gap confers no finality on what it admitted | `isFinalAsOf` unchanged by settlement | closing a gap does not make the instant it admitted final | delivered |
+| A proof is bound to one admission | `admissionBinding`, `AttestationProofVerifier` | refuses a proof bound to a different admission | delivered |
+| Expiry is not an outcome | `SettlementExpired` | refuses to close a gap that ran past its deadline | delivered |
+| Register invariants still apply through settlement | `RegisterProjection.admit` | still enforces the register's invariants through settlement | delivered |
+| Cancellation settles nothing | `cancelSettlement` | cancels only after the deadline, only by the initiator, and settles nothing | delivered |
+| A closed gap cannot be closed again | `GapStatus` | refuses to close a gap that is no longer open, and reopens cleanly | delivered |
+| The register's first entry requires a bound proof | `initializationBinding`, `initializeRegister` | requires a bound proof for the register's first entry | delivered |
+| A genesis proof cannot be replayed as an admission | version 1 vs 2+ in the binding | does not let a genesis proof be replayed as an admission | delivered |
+| Settlement cannot write a register it does not own | `NotSourceAuthority` | does not let settlement reach a register it is not the authority of | delivered |
+
+`GapStatus.SUPERSEDED` and `SettlementSuperseded` are declared by the frozen
+interface and never produced. A token holds at most one open gap, and replacing
+an open gap with another would be a third way to close one without either
+admitting or cancelling. The in-process engine has no such path either.
+
+Not delivered by this stage: a live network, and a succinct verifier. The
+shipped verifier admits on a named attestor's signature over the binding, which
+is the weakest profile that is still a real one. The chain is in-process, so
+gas economics, reorg behaviour and a real registrar's operations are
+unexercised.
 
 ## Shared conformance vectors
 
@@ -323,12 +371,12 @@ the failure mode these vectors close.
 
 ## Verification and outstanding acceptance
 
-`npm run verify`: typecheck, 165 passing in-process Node tests and 28 passing
+`npm run verify`: typecheck, 169 passing in-process Node tests and 28 passing
 on-chain tests, including the Python SDK suite, authenticated loopback
-integration, journal restart and crash recovery, Solidity compilation, the
-deployed projection and settlement contracts, the deployed code reproducing the
-shared conformance vectors, and the coverage gate. This is local Node 24
-validation; CI also targets Node 22.
+integration, journal restart, crash recovery, identity binding and failed-append
+rollback, Solidity compilation, the deployed projection and settlement
+contracts, the deployed code reproducing the shared conformance vectors, and the
+coverage gate. This is local Node 24 validation; CI also targets Node 22.
 
 The full stage plan remains incomplete. The deployed contract transaction and
 event run is delivered for both frozen interfaces, and the plan's 80% coverage
@@ -339,3 +387,24 @@ registrar's operations remain unexercised; a succinct verifier behind the proof
 port; a deployed console session provider; a container run, which was not
 exercised during these corrections; and recovery evidence from a real restart
 under load.
+
+## Coverage
+
+The acceptance plan's 80% target, measured rather than asserted. `npm run
+coverage` runs the in-process suite under Node's own coverage and exits
+non-zero below 80% on lines, branches or functions. `npm run verify` runs it,
+and so does CI on both Node 22 and Node 24.
+
+| Metric | Threshold | Measured | Status |
+| --- | --- | --- | --- |
+| Lines | 80% | 96.90% | delivered |
+| Branches | 80% | 87.92% | delivered |
+| Functions | 80% | 95.42% | delivered |
+
+The measurement excludes `tests/**`, so the figures describe the source tree
+and not the suite measuring itself. The threshold was checked against a
+deliberately failing bound before being wired in, so the gate is known to fail
+rather than merely known to pass.
+
+Not covered by this gate: the Solidity tree, whose evidence is the on-chain
+suites above rather than a line-coverage figure.

@@ -37,10 +37,9 @@ The current repository contains:
 5. a read-only institutional console with role checks;
 6. an Ethereum read adapter and fake-RPC conformance tests;
 7. audit export, API-key, tenant-isolation and metrics primitives;
-8. deployable `RegisterProjection` and `ProjectionSettlement` contracts, with
-   an attestation proof verifier behind a pluggable verification port;
-9. semantic, API, SDK, console, settlement, adapter, Solidity interface and
-   on-chain tests.
+8. a file-backed append-only journal, fsynced per append and replayed on open, bound by a header to the projection its entries were admitted under;
+9. deployable `RegisterProjection` and `ProjectionSettlement` contracts, driven by real transactions and verified from receipts and from the chain's log index, with an attestation proof verifier behind a pluggable verification port;
+10. semantic, API, SDK, console, settlement, adapter, persistence, Solidity interface and on-chain tests.
 
 The Solidity tree carries the frozen ERC-8415 interfaces, selector helpers and
 concrete implementations of both of them.
@@ -67,7 +66,7 @@ behaviour and a real registrar's operations are unexercised.
 | 4 Settlement MVP | In-process open/admit/cancel workflow, authority and deadline rules, and a deployed `ProjectionSettlement` that is the register's sole writer, verifying a signed admission binding on chain | Live-network deployment; a succinct verifier behind the same proof port | On-chain complete in-process; no live network |
 | 5 Oracle/Application SDK | Authenticated JS/Python clients, pagination, uint64 handling and separate temporal signals | Same-transaction on-chain reads remain an integration responsibility | Code complete |
 | 6 Institutional Console | Read-only views, roles, timeline, authentication callback and output escaping | Deployed session provider/login flow and deployed acceptance | Code complete; deployment evidence missing |
-| 7 Production Infrastructure | API-key hashing, tenant isolation, refusal metrics, audit export primitives, journal-based durable persistence, and an enforced 80% coverage gate measuring 96.88% lines / 87.36% branches / 95.69% functions | Operational deployment and recovery evidence from a real restart under load | Primitives plus a measured coverage gate |
+| 7 Production Infrastructure | API-key hashing, tenant isolation, refusal metrics, audit export primitives, journal-based durable persistence, and an enforced 80% coverage gate on lines, branches and functions | Operational deployment and recovery evidence from a real restart under load | Primitives plus a measured coverage gate |
 
 The complete Stage 0–7 delivery gate is therefore **not complete**. This conclusion is based on the stage PRD, the source tree, tests, CI configuration and delivery evidence, not on README text alone.
 
@@ -81,13 +80,14 @@ npm run verify
 python3 -B sdk/python/test_client.py
 ```
 
-The verification run observed for this tree reports 165 passing in-process
+The verification run observed for this tree reports 169 passing in-process
 Node tests and 28 passing on-chain tests, covering the mandatory conformance
 suite, Solidity ABI checks with both frozen ERC-165 identifiers derived from
-the compiled ABI, authenticated loopback coverage, the journal's restart and
-crash-recovery cases, the deployed projection and settlement contracts, the
-deployed code reproducing the same `conformance/projection-vectors.json` the
-in-process kernel runs against, and the Python SDK suite.
+the compiled ABI, authenticated loopback coverage, the journal's restart,
+crash-recovery, identity-binding and failed-append cases, the deployed
+projection and settlement contracts, the deployed code reproducing the same
+`conformance/projection-vectors.json` the in-process kernel runs against, and
+the Python SDK suite.
 
 CI runs `npm ci`, typecheck, the coverage-gated test step and the on-chain
 step on Node 22 and Node 24. Its result for any given commit is whatever that
@@ -96,9 +96,10 @@ not deployment, live-chain or production-readiness gates.
 
 The acceptance plan additionally requires:
 
-- unit coverage of at least 80%, which `npm run coverage` enforces and the
-  current tree exceeds at 96.88% lines, 87.36% branches and 95.69% functions
-  over the source tree, excluding the tests themselves;
+- unit coverage of at least 80%, which `npm run coverage` enforces on lines,
+  branches and functions over the source tree, excluding the tests themselves.
+  The measured figures are in [DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md),
+  which is the one place they are written down so they cannot drift apart;
 - an integration run from register identity through proof verification, admission, temporal query, gap close and audit;
 - deployment and recovery evidence.
 

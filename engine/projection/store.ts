@@ -57,6 +57,17 @@ export class ProjectionStore {
     this.#options = Object.freeze({ ...options });
     this.#profile = profile;
     this.#journal = options.journal ?? nullJournal;
+    // Bind the journal to this projection before it is read or written.
+    // Replay does not re-verify proofs, by design, so a journal that belongs
+    // to a different register, verification profile or chain has to be
+    // refused rather than replayed: its entries were never bound to the
+    // identity this store is about to present them under.
+    this.#journal.bind({
+      registerId: options.registerId,
+      verificationProfile: options.verificationProfile,
+      chainId: options.adapter.chainId.toString(),
+      contract: options.adapter.contract,
+    });
   }
 
   /** Why the store stopped accepting writes, or undefined while it is healthy. */
@@ -348,11 +359,28 @@ export class ProjectionStore {
   }
 
   replayGapOpened(record: Settlement): void {
+    // The same one-open-gap rule the live path enforces. Without it a journal
+    // carrying two openings for one token replays into a state the store
+    // cannot otherwise reach: one pointer, two settlements left OPEN, and no
+    // way to tell which one a later cancellation closed. Failing here is what
+    // "a tampered journal does not load quietly" has to mean.
+    if (this.#openGaps.has(key(record.tokenId))) {
+      reject('GAP_ALREADY_OPEN', `token ${record.tokenId} already has an open gap`);
+    }
+    const existing = this.#settlements.get(record.settlementId);
+    if (existing !== undefined) {
+      reject('SETTLEMENT_EXISTS', `settlement ${record.settlementId} appears twice in the journal`);
+    }
     this.#openGaps.set(key(record.tokenId), record.settlementId);
     this.#settlements.set(record.settlementId, record);
   }
 
   replayGapCancelled(tokenId: TokenId, settlementId: Bytes32): void {
+    // A cancellation that does not close the gap the journal says is open is
+    // a reordered or forged record, not a recoverable state.
+    if (this.#openGaps.get(key(tokenId)) !== settlementId) {
+      reject('NO_OPEN_GAP', `token ${tokenId} has no open gap ${settlementId} to cancel`);
+    }
     this.#openGaps.delete(key(tokenId));
     this.#settlements.set(settlementId, { ...this.settlement(settlementId), status: 'CANCELLED' });
   }

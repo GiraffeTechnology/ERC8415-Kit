@@ -19,7 +19,7 @@ profile before appending an entry and closing an associated gap.
 | 4 Settlement | authority, bounded deadlines, initiator-only cancellation after expiry | on-chain execution is part of outstanding Stage 3 work |
 | 5 SDK | authenticated JS/Python clients, atomic server resolution and full pagination | HTTP snapshots do not replace same-transaction on-chain reads |
 | 6 Console | authenticated transport boundary, role-gated views and timeline | session provider/login integration and deployed acceptance |
-| 7 Infrastructure | tenant keys, isolation, metrics and audit export primitives | durable storage, deployment and recovery evidence |
+| 7 Infrastructure | tenant keys, isolation, metrics, audit export primitives and a journal-backed durable store | a database-backed store, concurrent-writer safety, deployment and recovery evidence from a real restart under load |
 
 ## PR #8 corrections
 
@@ -48,7 +48,7 @@ as this application tree or independently verify MPT/storage proofs.
 
 ```sh
 npm ci
-npm run verify                     # typecheck + 165 in-process + 28 on-chain tests
+npm run verify                     # typecheck + 169 in-process + 28 on-chain tests
 python3 -B sdk/python/test_client.py # standalone Python checks
 ```
 
@@ -76,22 +76,24 @@ signatures recovered on chain, and events are read back both from receipts and
 from the chain's log index. That closes the deployed-contract,
 transaction-submission and event-verification gaps for both frozen interfaces.
 
-Stores are no longer only in-process: the projection is backed by an
-append-only journal, `fsync`ed on every append and replayed on open. It is a
-single-process file, so a database-backed store and concurrent-writer safety
-are not covered.
+Mutations are now durable: an append-only journal, fsynced before a caller is
+told anything succeeded, replayed on open, bound by a header to the register,
+verification profile and chain its entries were admitted under. An append that
+fails undoes the mutation it could not record, so no reader sees an entry the
+disk does not hold. It is a single-process file, so a database-backed store,
+concurrent-writer safety and recovery evidence from a real restart under load
+remain outstanding.
 
-Still outstanding: any live network, so gas economics, reorg behaviour and a
-real registrar's operations are unexercised; a succinct verifier behind the
-proof port; a console session provider behind the injected `authenticate`
-port; a container run; and recovery evidence from a real restart under load.
-These gaps remain acceptance work; passing unit tests and an in-process chain
-do not establish production delivery.
+Still outstanding beyond that: any live network, so gas economics, reorg
+behaviour and a real registrar's operations are unexercised; a succinct
+verifier behind the proof port; a console session provider behind the injected
+`authenticate` port; and a container run. These gaps remain acceptance work;
+passing unit tests and an in-process chain do not establish production
+delivery.
 
 The plan's 80% coverage target is no longer unmeasured. `npm run coverage`
 measures the source tree, excluding the tests themselves, and fails below 80%
-on lines, branches or functions. The current tree reports 96.88% lines, 87.36%
-branches and 95.69% functions. `npm run verify` runs it, as does CI.
+on lines, branches or functions. `npm run verify` runs it, as does CI.
 
 No runtime dependencies were added. TypeScript, Node types, solc,
 ethereum-cryptography and, for the on-chain suite only, hardhat and ethers
