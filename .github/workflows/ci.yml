@@ -38,6 +38,17 @@ jobs:
       - name: Test with coverage
         run: npm run coverage
 
+      # The solc binary is fetched from an external host the first time it is
+      # needed. That download is the one part of this job that can fail for
+      # reasons unrelated to the code - it has already cost a run with an
+      # ECONNRESET - so keep it between runs.
+      - name: Cache the Solidity compiler
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/hardhat-nodejs
+          key: solc-${{ runner.os }}-${{ hashFiles('hardhat.config.cjs') }}
+          restore-keys: solc-${{ runner.os }}-
+
       # Deploys the projection and settlement contracts to an in-process EVM,
       # submits real transactions against them and verifies the events they
       # emit. Separate from the step above because it is the only part of the
