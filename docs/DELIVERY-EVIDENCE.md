@@ -229,6 +229,39 @@ update, transfer and settle commands. Those are the mutable asset registry the
 standard forbids, and a test asserts a verified attestation still leaves the
 instant provisional — the property that branch's design could not hold.
 
+## Stage 3 — on-chain delivery
+
+A concrete `contracts/RegisterProjection.sol`, deployed to an EVM and driven by
+real transactions. Run with `npm run test:onchain`.
+
+| Requirement | Implementation | Test (`tests/onchain/projection.onchain.cjs`) | Status |
+| --- | --- | --- | --- |
+| A deployable contract exists | `contracts/RegisterProjection.sol` | deploys as a real contract with code at its address | delivered |
+| Deployed code advertises `0x6309e170` | `supportsInterface` | advertises the frozen projection identifier from the deployed code | delivered |
+| Transaction submission — initialization | `initialize` | submits an initialization transaction and emits RegisterInitialized | delivered |
+| Transaction submission — admission | `admit` | submits an admission transaction and emits RegisterSuperseded | delivered |
+| Event verification from the log index | events | verifies the event history by querying logs from the chain | delivered |
+| Invariant 2 closes the prior interval on chain | `admit` | closes the preceding interval on chain with the register's effective time | delivered |
+| The finality rule from deployed code | `isFinalAsOf` | answers the finality rule from deployed code | delivered |
+| Uncovered instant reverts; finality answers | `entryAsOf`, `isFinalAsOf` | reverts an uncovered instant while finality still answers | delivered |
+| Every invariant violation reverts and writes nothing | `initialize`, `admit` | rejects every invariant violation as a reverted transaction | delivered |
+| Per-token, not cross-token, uniqueness | `_commitmentSeen` | keeps commitment uniqueness per token, not across tokens | delivered |
+| No freeze, revoke, override or rollback on chain | — | exposes no freeze, revoke, override or rollback on the deployed surface | delivered |
+| Deployed code matches the shared vectors | — | reproduces the shared conformance vectors from deployed code | delivered |
+
+The deployed contract is authority-gated, not proof-gated. `initialize` and
+`admit` take no proof data and verify none; the source authority being the
+caller is the whole check, and a test asserts a non-authority admission
+reverts. Proof-profile verification, remote-height advancement and replay
+checks live in the in-process admission engine, and the on-chain path that
+carries `proofData` is `IProjectionSettlement`, which this contract does not
+implement or advertise. A deployment needing admissions verified on chain must
+put a verifier-backed settlement contract in front of this one.
+
+Not delivered by this stage: an on-chain `IProjectionSettlement`
+implementation, and any live network. The chain is in-process, so gas
+economics, reorg behaviour and a real registrar's operations are unexercised.
+
 ## Durable storage
 
 An append-only journal, `fsync`ed on every append, replayed on open. Design
@@ -246,6 +279,17 @@ notes in `engine/persistence/README.md`.
 | Replay appends nothing | replay entry points | replay does not extend the journal it read | delivered |
 | A restored store keeps journaling | `restoreProjectionStore` | a restored store keeps journaling new mutations | delivered |
 | An unjournalable store fails closed | `#poisoned`, `STORE_NOT_WRITABLE` | a store that cannot journal refuses further writes instead of drifting | delivered |
+| An append after a torn tail is not glued onto the fragment | `FileJournal.#open` truncates before the first write; `#write` loops `writeSync` | an append after a torn tail does not glue itself onto the fragment | delivered |
+| A journal is bound to its projection's identity | header record; `ProjectionStore` binds on construction | a journal is refused by a store for a different projection | delivered |
+| An unheadered journal is not replayed | `FileJournal.bind` | a journal with no identity header is not replayed | delivered |
+| Replay enforces one open gap per token | `store.replayGapOpened` | a journal opening two gaps on one token fails to replay | delivered |
+| Replay enforces that a cancellation closes an open gap | `store.replayGapCancelled` | a journal cancelling a gap that is not open fails to replay | delivered |
+
+Replay does not re-verify proofs, deliberately: re-deciding admission at
+restart would let a rotated profile or a pruned remote height erase an entry
+the register already confirmed. The identity header is what stands in for that
+check — it binds a journal to the register, verification profile and chain its
+entries were admitted under, so a reused path is refused instead of replayed.
 
 Not delivered by this stage: a database-backed store, concurrent-writer
 safety, and recovery evidence from a real restart under load. The journal is a
@@ -287,11 +331,16 @@ the failure mode these vectors close.
 
 ## Verification and outstanding acceptance
 
-`npm run verify`: typecheck and 151 passing Node tests, including the Python SDK
-suite, authenticated loopback integration, Solidity compilation and shared
-conformance vectors. This is local Node 24 validation; CI also targets Node 22.
+`npm run verify`: typecheck, 166 passing in-process Node tests and 12 on-chain
+tests, including the Python SDK suite, authenticated loopback integration,
+Solidity compilation, shared conformance vectors and the deployed-contract run
+in "Stage 3 — on-chain delivery" above. This is local Node 24 validation; CI
+also targets Node 22.
 
-The full stage plan remains incomplete. Missing evidence includes a deployed
-contract transaction/event run, measured coverage against the plan's 80% target,
-a deployed console session provider and production persistence/recovery. Docker
-and live-chain integration were not exercised during these corrections.
+The full stage plan remains incomplete. The deployed contract transaction and
+event run is delivered, but against an in-process chain, so live-chain gas
+economics, reorg behaviour and a real registrar's operations remain
+unexercised. Missing evidence also includes an on-chain `IProjectionSettlement`
+implementation, measured coverage against the plan's 80% target, a deployed
+console session provider and production persistence/recovery. Docker was not
+exercised during these corrections.

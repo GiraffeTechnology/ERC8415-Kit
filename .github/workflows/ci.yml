@@ -34,3 +34,10 @@ jobs:
 
       - name: Test
         run: npm test
+
+      # Deploys the projection contract to an in-process EVM, submits real
+      # transactions against it and verifies the events they emit. Separate
+      # from the step above because it is the only part of the suite that
+      # needs a chain.
+      - name: On-chain delivery
+        run: npm run test:onchain
