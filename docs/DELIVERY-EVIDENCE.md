@@ -318,3 +318,38 @@ The full stage plan remains incomplete. Missing evidence includes a deployed
 contract transaction/event run, measured coverage against the plan's 80% target,
 a deployed console session provider and production persistence/recovery. Docker
 and live-chain integration were not exercised during these corrections.
+
+## Stage 4 — on-chain settlement
+
+A concrete `contracts/ProjectionSettlement.sol`, deployed as the register's
+sole writer, with proof verification behind `ISettlementProofVerifier`. Run
+with `npm run test:onchain`.
+
+| Requirement | Implementation | Test (`tests/onchain/settlement.onchain.cjs`) | Status |
+| --- | --- | --- | --- |
+| Settlement is the register's only writer | immutable `sourceAuthority` | deploys as the register's only writer | delivered |
+| Deployed code advertises `0xf4a7d71b` and not `0x6309e170` | `supportsInterface` | advertises the frozen settlement identifier from the deployed code | delivered |
+| Opening a gap records it without changing finality | `beginSettlement` | opens a gap and reports it as an open gap, not as a loss of finality | delivered |
+| Settlement authority is separate from ownership | `isSettlementAuthority` | refuses to open a gap for anyone but a settlement authority | delivered |
+| Deadline in the future and within the period | `beginSettlement` | refuses a deadline in the past or beyond the settlement period | delivered |
+| One open gap per token, one record per identifier | `_openGap`, `_settlements` | allows one open gap per token and one record per identifier | delivered |
+| Closing a gap admits through the register | `finalizeSettlement` | closes a gap by admitting the entry, and the register records it | delivered |
+| Any relayer may submit a bound proof | no caller check on finalize | closes a gap by admitting the entry, and the register records it | delivered |
+| Closing a gap confers no finality on what it admitted | `isFinalAsOf` unchanged by settlement | closing a gap does not make the instant it admitted final | delivered |
+| A proof is bound to one admission | `admissionBinding`, `AttestationProofVerifier` | refuses a proof bound to a different admission | delivered |
+| Expiry is not an outcome | `SettlementExpired` | refuses to close a gap that ran past its deadline | delivered |
+| Register invariants still apply through settlement | `RegisterProjection.admit` | still enforces the register's invariants through settlement | delivered |
+| Cancellation settles nothing | `cancelSettlement` | cancels only after the deadline, only by the initiator, and settles nothing | delivered |
+| A closed gap cannot be closed again | `GapStatus` | refuses to close a gap that is no longer open, and reopens cleanly | delivered |
+| Settlement cannot write a register it does not own | `NotSourceAuthority` | does not let settlement reach a register it is not the authority of | delivered |
+
+`GapStatus.SUPERSEDED` and `SettlementSuperseded` are declared by the frozen
+interface and never produced. A token holds at most one open gap, and replacing
+an open gap with another would be a third way to close one without either
+admitting or cancelling. The in-process engine has no such path either.
+
+Not delivered by this stage: a live network, and a succinct verifier. The
+shipped verifier admits on a named attestor's signature over the binding, which
+is the weakest profile that is still a real one. The chain is in-process, so
+gas economics, reorg behaviour and a real registrar's operations are
+unexercised.
