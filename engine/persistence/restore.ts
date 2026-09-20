@@ -21,8 +21,15 @@ export interface RestoreResult {
  *
  * What replay does preserve is the kernel's own invariants, because entries go
  * back in through the same admission the first write used. A journal that has
- * been tampered with - a reordered entry, a broken commitment link - therefore
- * fails to replay rather than loading quietly.
+ * been tampered with - a reordered entry, a broken commitment link, two open
+ * gaps on one token - therefore fails to replay rather than loading quietly.
+ *
+ * Because proofs are not re-verified, the journal's identity is checked before
+ * anything is replayed. A journal path can be reused, and a store configured
+ * for a different register, verification profile or chain would otherwise
+ * replay the old file and present its entries as records of a projection their
+ * proofs were never bound to. The check is the store's constructor binding the
+ * journal, below, which raises before a single record is applied.
  */
 export const restoreProjectionStore = (
   options: StoreOptions & { readonly journal: Journal },

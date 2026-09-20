@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, appendFileSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { FileJournal, nullJournal } from '../engine/persistence/journal.ts';
+import { FileJournal, JournalIdentityMismatchError, nullJournal } from '../engine/persistence/journal.ts';
 import { restoreProjectionStore } from '../engine/persistence/restore.ts';
 import { ProjectionStore } from '../engine/projection/store.ts';
 import { ProjectionError } from '../engine/projection/errors.ts';
@@ -12,6 +12,17 @@ import { ALICE, BOB, admit, commitment, entry, gap, harness } from './support/fi
 
 const TOKEN = 1n;
 const scratch = () => join(mkdtempSync(join(tmpdir(), 'erc8415-journal-')), 'projection.ndjson');
+
+/** The journal's mutation lines, without the identity header it opens with. */
+const recordLines = (path: string) =>
+  readFileSync(path, 'utf8')
+    .trim()
+    .split('\n')
+    .filter((line) => !line.startsWith('{"kind":"header"'));
+
+/** The header line, as written. */
+const headerLine = (path: string) =>
+  readFileSync(path, 'utf8').split('\n').find((line) => line.startsWith('{"kind":"header"'))!;
 
 /** A harness whose store journals to `path`, sharing the fixture's profiles. */
 const durable = (path: string) => {
@@ -41,7 +52,7 @@ test('a store with no journal behaves exactly as before', () => {
   admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
   assert.equal(h.store.entryCount(TOKEN), 1);
   assert.equal(h.store.poisonedReason, undefined);
-  assert.deepEqual(nullJournal.read(), { records: [], truncatedTail: false });
+  assert.deepEqual(nullJournal.read(), { records: [], identity: undefined, truncatedTail: false });
 });
 
 test('admitted entries survive a restart', () => {
@@ -130,7 +141,7 @@ test('every journaled uint64 is a decimal string, never a JSON number', () => {
   const huge = 2n ** 53n + 1n;
   admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: huge, recordCommitment: commitment(1) }));
 
-  const line = JSON.parse(readFileSync(path, 'utf8').trim()) as { entry: Record<string, unknown> };
+  const line = JSON.parse(recordLines(path)[0]!) as { entry: Record<string, unknown> };
   assert.equal(typeof line.entry['effectiveAt'], 'string');
   assert.equal(line.entry['effectiveAt'], huge.toString());
 
@@ -149,8 +160,8 @@ test('a tampered journal fails to replay rather than loading quietly', () => {
   }));
 
   // Swap the two records, breaking the commitment link and the version order.
-  const lines = readFileSync(path, 'utf8').trim().split('\n');
-  writeFileSync(path, `${lines[1]}\n${lines[0]}\n`);
+  const lines = recordLines(path);
+  writeFileSync(path, `${headerLine(path)}\n${lines[1]}\n${lines[0]}\n`);
 
   assert.throws(() => reopen(path, h), (error: unknown) => {
     assert.ok(error instanceof ProjectionError, `expected a ProjectionError, got ${String(error)}`);
@@ -185,7 +196,8 @@ test('a restored store keeps journaling new mutations', () => {
 test('a store that cannot journal refuses further writes instead of drifting', () => {
   const failing = {
     append: () => { throw new Error('disk full'); },
-    read: () => ({ records: [], truncatedTail: false }),
+    read: () => ({ records: [], identity: undefined, truncatedTail: false }),
+    bind: () => {},
     close: () => {},
   };
   const base = harness();
@@ -204,6 +216,122 @@ test('a store that cannot journal refuses further writes instead of drifting', (
   assert.throws(() => store.openGap(2n, gap({ settlementId: commitment(0x96) })), (error: unknown) => {
     assert.ok(error instanceof ProjectionError);
     assert.equal(error.code, 'STORE_NOT_WRITABLE');
+    return true;
+  });
+});
+
+test('an append after a torn tail does not glue itself onto the fragment', () => {
+  // The torn-tail test above proves recovery reads past a fragment. This is
+  // the other half, and the one that bites: the process comes back up and
+  // keeps writing. If the next record lands concatenated onto the dead one it
+  // is fsynced and reported committed, and the restart after that cannot parse
+  // the journal at all - so the mutation the caller was told had survived is
+  // the one that takes every later record down with it.
+  const path = scratch();
+  const h = durable(path);
+  admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
+  appendFileSync(path, '{"kind":"admitted","tokenId":"1","entry":{"vers');
+
+  // The process comes back, replays what survived, and carries on writing.
+  const second = reopen(path, h);
+  assert.equal(second.truncatedTail, true, 'the fragment was not seen on recovery');
+  admit({ ...h, store: second.store }, TOKEN, entry({
+    version: 2n, holder: BOB, effectiveAt: 130n,
+    recordCommitment: commitment(2), previousCommitment: commitment(1),
+  }));
+
+  // Every line is a whole record, and the fragment is gone.
+  for (const line of recordLines(path)) JSON.parse(line);
+  assert.equal(recordLines(path).length, 2);
+
+  const restored = reopen(path, h);
+  assert.equal(restored.applied, 2, 'the acknowledged mutation did not survive');
+  assert.equal(restored.store.holderAsOf(TOKEN, 130n), BOB);
+  assert.equal(restored.truncatedTail, false, 'the fragment was already discarded');
+});
+
+test('a journal is refused by a store for a different projection', () => {
+  const path = scratch();
+  const h = durable(path);
+  admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
+
+  // Replay does not re-verify proofs, on purpose. So a journal reused under a
+  // different register identity would have its entries presented as records of
+  // a projection they were never bound to, with nothing left to catch it.
+  const other = harness();
+  assert.throws(
+    () =>
+      restoreProjectionStore({
+        registerId: commitment(0x77),
+        verificationProfile: other.store.verificationProfile,
+        profiles: other.profiles,
+        adapter: other.adapter,
+        journal: new FileJournal(path),
+      }),
+    (error: unknown) => {
+      assert.ok(error instanceof JournalIdentityMismatchError, String(error));
+      assert.equal(error.field, 'registerId');
+      return true;
+    },
+  );
+
+  // And the same journal still opens under the identity that wrote it.
+  assert.equal(reopen(path, h).applied, 1);
+});
+
+test('a journal with no identity header is not replayed', () => {
+  // Every journal this code writes opens with a header, so one without a
+  // header and with records in it was written by something else. Replaying it
+  // would be the same exposure as replaying a mismatched one, minus the
+  // evidence.
+  const path = scratch();
+  const h = harness();
+  writeFileSync(
+    path,
+    '{"kind":"admitted","tokenId":"1","entry":{"version":"1","holder":"' +
+      `${ALICE}","effectiveAt":"100","supersededAt":"0","recordCommitment":"${commitment(1)}",` +
+      `"previousCommitment":"${ZERO_BYTES32}","registryReference":"${commitment(0xab)}"},` +
+      '"remoteHeight":"1","settlementId":null}\n',
+  );
+  assert.throws(() => reopen(path, h), JournalIdentityMismatchError);
+});
+
+test('a journal opening two gaps on one token fails to replay', () => {
+  const path = scratch();
+  const h = durable(path);
+  h.store.openGap(TOKEN, gap({ settlementId: commitment(0x81) }));
+
+  // The live path rejects a second opening with GAP_ALREADY_OPEN. A journal
+  // carrying one replays into a state the store cannot otherwise reach: one
+  // open-gap pointer, two settlements left OPEN, and no way to tell which one
+  // a later cancellation closed.
+  const opened = recordLines(path)[0]!;
+  writeFileSync(
+    path,
+    `${headerLine(path)}\n${opened}\n${opened.replace(commitment(0x81), commitment(0x82))}\n`,
+  );
+
+  assert.throws(() => reopen(path, h), (error: unknown) => {
+    assert.ok(error instanceof ProjectionError, String(error));
+    assert.equal(error.code, 'GAP_ALREADY_OPEN');
+    return true;
+  });
+});
+
+test('a journal cancelling a gap that is not open fails to replay', () => {
+  const path = scratch();
+  const h = durable(path);
+  h.store.openGap(TOKEN, gap({ settlementId: commitment(0x83) }));
+  h.store.cancelGap(TOKEN);
+
+  // Drop the opening and keep the cancellation: a reordered or forged record,
+  // not a recoverable state.
+  const cancelled = recordLines(path).find((line) => line.includes('gap-cancelled'))!;
+  writeFileSync(path, `${headerLine(path)}\n${cancelled}\n`);
+
+  assert.throws(() => reopen(path, h), (error: unknown) => {
+    assert.ok(error instanceof ProjectionError, String(error));
+    assert.equal(error.code, 'NO_OPEN_GAP');
     return true;
   });
 });
