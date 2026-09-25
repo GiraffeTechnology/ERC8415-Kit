@@ -2,122 +2,205 @@
 
 Temporal projection infrastructure for [ERC-8415 — Asynchronous Register Projection for NFTs](https://github.com/GiraffeTechnology/ERC-8415).
 
-**Positioning:** Stripe API + AWS SDK for ERC-8415 native assets.
+**Positioning:** Infrastructure layer for ERC-8415 ecosystems.
 
-## Why this exists
+ERC8415-Kit is not a wallet, application, marketplace, registry operator or legal adjudication system. It provides the projection, admission and query infrastructure consumed by applications and integration layers.
 
-An ERC-721 can trade faster than an external register updates. `ownerOf` answers who holds the tradeable position now; it does not answer who the register had confirmed at a past instant.
+## Product Role
 
-ERC-8415 keeps those sequences apart:
+ERC-8415 separates two sequences:
 
-- **tradeable position** — `ownerOf`, which moves with the market;
-- **confirmed holder** — the register's record, which moves when a proof admits an entry.
+- **tradeable position** — `ownerOf`, which changes with on-chain transfers;
+- **confirmed holder** — the register projection, which changes only when an entry is admitted.
 
-The Kit records the projection, preserves its history, and answers temporal queries. It does not adjudicate legal title or prescribe settlement remedies.
+The Kit preserves this distinction.
 
-## Core semantics
+Architecture boundary:
 
-- Entries are append-only per token, with consecutive versions, strictly increasing `effectiveAt`, commitment linkage and per-token commitment uniqueness.
-- `holderAsOf(tokenId, instant)` returns the confirmed holder only.
-- `isFinalAsOf(tokenId, instant)` is derived from the later-admission rule: an interval becomes final only when a later entry is admitted.
-- An open or closed gap, cancellation, proof verification and timeout expiry do not create finality.
-- Opening a gap does not freeze ERC-721 transfers. Settlement authority is separate from token ownership.
-- The Kit records commitments and registry locators, never register contents.
+```
+Application / Wallet
+        |
+        v
+Oracle / Integration Layer
+        |
+        v
+ERC8415-Kit
+        |
+        v
+ERC-8415 Projection Contract
+```
 
-The optional watchtower freshness layer is separate from projection finality; see [the semantic model](docs/ERC8415-SEMANTIC-MODEL.md).
+The Kit implements ERC-8415 infrastructure. Applications decide user experience, settlement policy and downstream actions.
 
-## What is implemented
+## Current Implementation Status (2026-09-20)
 
-The current repository contains:
+The repository has progressed beyond a specification prototype and contains:
 
-1. an in-process TypeScript projection kernel and admission store;
-2. Merkle, Ed25519 attestation and explicitly mock zk proof profiles;
-3. in-process settlement gap primitives;
-4. authenticated HTTP API and JavaScript/Python SDKs;
-5. a read-only institutional console with role checks;
-6. an Ethereum read adapter and fake-RPC conformance tests;
-7. audit export, API-key, tenant-isolation and metrics primitives;
-8. a file-backed append-only journal, fsynced per append and replayed on open, bound by a header to the projection its entries were admitted under;
-9. deployable `RegisterProjection` and `ProjectionSettlement` contracts, driven by real transactions and verified from receipts and from the chain's log index, with an attestation proof verifier behind a pluggable verification port;
-10. semantic, API, SDK, console, settlement, adapter, persistence, Solidity interface and on-chain tests.
+### Projection Core
 
-The Solidity tree carries the frozen ERC-8415 interfaces, selector helpers and
-concrete implementations of both of them.
+- append-only projection history;
+- consecutive versions;
+- strictly increasing `effectiveAt`;
+- commitment linkage;
+- per-token commitment uniqueness;
+- temporal queries:
+  - `holderAsOf()`;
+  - `entryAsOf()`;
+  - `currentEntry()`;
+  - `entryAt()`;
+  - `entryCount()`;
+  - `isFinalAsOf()`.
 
-`RegisterProjection` is authority-gated rather than proof-gated: it enforces
-the four projection invariants and verifies no proof itself. The proof lives
-one layer out, in `ProjectionSettlement`, which is the register's immutable
-source authority and verifies a bound proof before every write it makes -
-including the register's first entry. Nothing else can reach the register, so
-authority-gating the register and proof-gating its only authority amount to
-the same guarantee.
+### Verification and Admission
 
-The chain both are deployed to is in-process, so gas economics, reorg
-behaviour and a real registrar's operations are unexercised.
+Implemented:
 
-## Stage delivery status
+- Merkle proof profile;
+- Ed25519 attestation profile;
+- mock zk proof profile;
+- admission validation pipeline;
+- proof replay and binding checks.
 
-| Stage | Verified implementation | Remaining acceptance work | Status |
-| --- | --- | --- | --- |
-| 0 Foundation | Repository layout, Docker files, CI and structure tests | Container execution was not rerun for the current corrections | Foundation present |
-| 1 Projection Core | In-process kernel/store, temporal API, 20 mandatory semantic tests, and a file-backed append-only journal with replay and crash recovery | Deployed runtime; the journal is not exercised against a database or under concurrent writers | In-process complete; persistence journal-backed |
-| 2 Verification Engine | Merkle, Ed25519 and mock zk profiles with binding/replay checks | Production succinct verifier | Test profiles complete |
-| 3 ERC-8415 Adapter | Frozen interfaces, ABI/selector checks, fake-RPC reader, application-root adapter, and a deployed `RegisterProjection` driven by real transactions with events verified from receipts and the log index | Live-network deployment and Ethereum MPT proof verification | On-chain complete in-process; no live network |
-| 4 Settlement MVP | In-process open/admit/cancel workflow, authority and deadline rules, and a deployed `ProjectionSettlement` that is the register's sole writer, verifying a signed admission binding on chain | Live-network deployment; a succinct verifier behind the same proof port | On-chain complete in-process; no live network |
-| 5 Oracle/Application SDK | Authenticated JS/Python clients, pagination, uint64 handling and separate temporal signals | Same-transaction on-chain reads remain an integration responsibility | Code complete |
-| 6 Institutional Console | Read-only views, roles, timeline, authentication callback and output escaping | Deployed session provider/login flow and deployed acceptance | Code complete; deployment evidence missing |
-| 7 Production Infrastructure | API-key hashing, tenant isolation, refusal metrics, audit export primitives, journal-based durable persistence, and an enforced 80% coverage gate on lines, branches and functions | Operational deployment and recovery evidence from a real restart under load | Primitives plus a measured coverage gate |
+The Kit validates admission according to configured proof profiles. It does not judge the truth of the underlying external register.
 
-The complete Stage 0–7 delivery gate is therefore **not complete**. This conclusion is based on the stage PRD, the source tree, tests, CI configuration and delivery evidence, not on README text alone.
+### Infrastructure Components
+
+Implemented:
+
+- authenticated HTTP API;
+- JavaScript and Python SDKs;
+- institutional read-only console;
+- API key and tenant isolation primitives;
+- audit export primitives;
+- metrics and operational boundaries;
+- append-only file journal with replay support;
+- Ethereum adapter;
+- Solidity `RegisterProjection` reference implementation;
+- Solidity `ProjectionSettlement` reference implementation, holding the
+  register's source authority and verifying a bound proof before every
+  write, behind a pluggable `ISettlementProofVerifier`;
+- conformance and on-chain test suites.
+
+## ERC-8415 Semantic Boundary
+
+The Kit MUST preserve:
+
+```
+ownerOf
+    !=
+confirmed holder
+```
+
+The Kit exposes facts, not conclusions:
+
+- finality is not freshness;
+- gap status is not rejection;
+- proof verification is not legal validity;
+- cancellation is not finality;
+- timeout is not finality.
+
+`isFinalAsOf()` follows the ERC-8415 later-admission rule:
+
+```text
+true
+iff
+there exists a later admitted entry
+```
+
+Finality is derived from history. It is not an operator-controlled lifecycle state.
+
+## Implementation vs Production Status
+
+### Implemented
+
+- ERC-8415 projection semantics;
+- temporal query layer;
+- proof-profile admission model;
+- reference contract;
+- SDK and API surfaces;
+- local EVM/on-chain-style verification tests.
+
+### Remaining Production Validation
+
+The following are not claimed as completed:
+
+- live public network production deployment;
+- independent registrar operation;
+- production proof verifier deployment;
+- operational recovery evidence under production load;
+- institutional source integration.
+
+Code completion does not equal production delivery.
+
+## Settlement Boundary
+
+The Kit provides settlement-related primitives and supports application settlement patterns, but does not impose a settlement model.
+
+Applications may implement:
+
+- escrow;
+- timeout handling;
+- refund logic;
+- transaction workflows.
+
+Those remain application-layer decisions.
+
+`IProjectionSettlement` is implemented on chain by `ProjectionSettlement`. It
+opens, closes and cancels gaps and is the register's only writer, but it
+imposes no settlement model: it confers no finality, cannot reject, cannot
+block a transfer, and treats an expired gap as undecided rather than as an
+outcome.
 
 ## Verification
-
-Run locally:
 
 ```sh
 npm ci
 npm run verify
-python3 -B sdk/python/test_client.py
 ```
 
-The verification run observed for this tree reports 169 passing in-process
-Node tests and 28 passing on-chain tests, covering the mandatory conformance
-suite, Solidity ABI checks with both frozen ERC-165 identifiers derived from
-the compiled ABI, authenticated loopback coverage, the journal's restart,
-crash-recovery, identity-binding and failed-append cases, the deployed
-projection and settlement contracts, the deployed code reproducing the same
-`conformance/projection-vectors.json` the in-process kernel runs against, and
-the Python SDK suite.
+Verification includes:
 
-CI runs `npm ci`, typecheck, the coverage-gated test step and the on-chain
-step on Node 22 and Node 24. Its result for any given commit is whatever that
-run reports and is not asserted here. CI success verifies the test pipeline,
-not deployment, live-chain or production-readiness gates.
+- TypeScript checks;
+- semantic tests;
+- API tests;
+- SDK tests;
+- on-chain contract tests;
+- a coverage gate that fails below 80% on lines, branches or functions,
+  measured over the source tree excluding the tests themselves. Measured
+  figures are in [docs/DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md).
 
-The acceptance plan additionally requires:
+Test success validates implementation behaviour. It does not prove production readiness or live deployment.
 
-- unit coverage of at least 80%, which `npm run coverage` enforces on lines,
-  branches and functions over the source tree, excluding the tests themselves.
-  The measured figures are in [DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md),
-  which is the one place they are written down so they cannot drift apart;
-- an integration run from register identity through proof verification, admission, temporal query, gap close and audit;
-- deployment and recovery evidence.
+## Responsibility Boundary
 
-Those items remain outstanding. The chain run of deploy contract → execute transaction → verify event is covered by `npm run test:onchain`, against an in-process EVM rather than a live network. See [DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md) and [FINAL-DELIVERY-REPORT.md](FINAL-DELIVERY-REPORT.md).
+ERC8415-Kit is:
 
-## Responsibility boundary
+- projection infrastructure;
+- admission infrastructure;
+- temporal query infrastructure;
+- ecosystem integration infrastructure.
 
-The Kit is not a wallet, frontend, marketplace, new blockchain standard, generic RWA registry or legal adjudicator. Applications decide escrow, cancellation, timeout, refund and downstream unwinding policies.
+ERC8415-Kit is NOT:
 
-Frozen interface identifiers:
+- a wallet;
+- ArtFi or any vertical application;
+- a marketplace;
+- a generic RWA registry;
+- a legal title authority;
+- a financial product.
+
+## Interfaces
 
 ```text
-IRegisterProjection     0x6309e170
-IProjectionSettlement   0xf4a7d71b
+IRegisterProjection
+0x6309e170
+
+IProjectionSettlement
+0xf4a7d71b
 ```
 
-The specification and semantic rules are defined by [AGENTS.md](AGENTS.md), [the product PRD](docs/ERC8415-Native-Infrastructure-Kit-PRD-v2.1.md), [the stage delivery PRD](docs/ERC-8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v2.0.md) and [the semantic model](docs/ERC8415-SEMANTIC-MODEL.md).
+The ERC-8415 standard and semantic model remain the source of truth.
 
 ## License
 
-[CC0 1.0 Universal (CC0-1.0)](LICENSE). Third-party components retain their respective licenses.
+[CC0 1.0 Universal (CC0-1.0)](LICENSE).
