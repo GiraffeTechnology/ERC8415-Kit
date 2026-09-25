@@ -76,6 +76,9 @@ Implemented:
 - append-only file journal with replay support;
 - Ethereum adapter;
 - Solidity `RegisterProjection` reference implementation;
+- Solidity `ProjectionSettlement` reference implementation, holding the
+  register's source authority and verifying a bound proof before every
+  write, behind a pluggable `ISettlementProofVerifier`;
 - conformance and on-chain test suites.
 
 ## ERC-8415 Semantic Boundary
@@ -142,6 +145,12 @@ Applications may implement:
 
 Those remain application-layer decisions.
 
+`IProjectionSettlement` is implemented on chain by `ProjectionSettlement`. It
+opens, closes and cancels gaps and is the register's only writer, but it
+imposes no settlement model: it confers no finality, cannot reject, cannot
+block a transfer, and treats an expired gap as undecided rather than as an
+outcome.
+
 ## Verification
 
 ```sh
@@ -155,7 +164,10 @@ Verification includes:
 - semantic tests;
 - API tests;
 - SDK tests;
-- on-chain contract tests.
+- on-chain contract tests;
+- a coverage gate that fails below 80% on lines, branches or functions,
+  measured over the source tree excluding the tests themselves. Measured
+  figures are in [docs/DELIVERY-EVIDENCE.md](docs/DELIVERY-EVIDENCE.md).
 
 Test success validates implementation behaviour. It does not prove production readiness or live deployment.
 

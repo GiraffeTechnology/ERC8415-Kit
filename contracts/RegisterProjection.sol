@@ -32,6 +32,10 @@ import {IRegisterProjection} from "./IRegisterProjection.sol";
 /// only. A deployment that needs admissions verified on chain must put a
 /// verifier-backed settlement contract in front of this one, or hold the
 /// authority key behind one; this contract will not do it for them.
+///
+/// `ProjectionSettlement` in this repository is that contract. It implements
+/// `IProjectionSettlement`, holds the source authority, and verifies a bound
+/// proof before every write it makes - the register's first entry included.
 contract RegisterProjection is IRegisterProjection {
     error NotSourceAuthority();
     error RegisterIdInvalid();

@@ -47,7 +47,7 @@ export const DEFAULT_TIMEOUT_MS = 10_000;
  * Refuses a base URL that would send an API key in clear, or one carrying
  * embedded credentials. Loopback stays allowed for development.
  *
- * Ported from the transport checks in the closed codex/stage5-sdk branch.
+ * Ported from the transport checks on the closed stage-5 branch.
  */
 const assertSafeBaseUrl = (baseUrl: string): void => {
   const url = new URL(baseUrl);

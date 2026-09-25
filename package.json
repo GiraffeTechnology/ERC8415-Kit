@@ -11,8 +11,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "node --test \"tests/**/*.test.ts\"",
-    "verify": "npm run typecheck && npm test && npm run test:onchain",
-    "test:onchain": "hardhat test"
+    "coverage": "node --test --experimental-test-coverage --test-coverage-exclude=\"tests/**\" --test-coverage-lines=80 --test-coverage-branches=80 --test-coverage-functions=80 \"tests/**/*.test.ts\"",
+    "test:onchain": "hardhat test",
+    "verify": "npm run typecheck && npm run coverage && npm run test:onchain"
   },
   "devDependencies": {
     "@nomicfoundation/hardhat-ethers": "^3.0.8",

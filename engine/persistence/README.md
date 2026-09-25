@@ -22,14 +22,35 @@ applying, so only a known-good mutation is ever written down.
 - **Crash between the apply and the `fsync`** loses that one mutation. The call
   had not returned, so no caller was told it succeeded, and replay produces a
   consistent state one mutation short.
-- **The append itself fails** — a full disk — and there is no way back, because
-  an append-only history cannot be un-applied. The store is poisoned: it
-  refuses every later write with `STORE_NOT_WRITABLE` rather than continue with
-  memory and disk disagreeing.
+- **The append itself fails** — a full disk, a read-only mount — and the
+  mutation is undone. The process is still running, so the divergence would be
+  observable: the caller is told the admission failed while every reader sees
+  the entry, until a restart makes it vanish. What cannot be un-applied is a
+  *journaled* history; a mutation that never reached the disk is not history,
+  and no caller was told it was. The rollback puts back the entry, the
+  `supersededAt` it wrote on the one before it, the remote height and the gap,
+  because those three are one admission and have to fail as one.
+
+  The store is poisoned even so. A failed append may have written bytes before
+  it threw, so memory is now correct but what the journal holds is not knowable
+  from here. It refuses every later write with `STORE_NOT_WRITABLE` rather than
+  append behind a record it cannot account for.
 
 Every append is followed by `fsyncSync`. Without it a write sits in the page
 cache and a power loss silently discards records the caller was told were
 committed, which is the failure this exists to prevent.
+
+## Recovery repairs, it does not just tolerate
+
+A crash mid-append leaves a final line with no terminating newline. Reading the
+journal physically truncates those bytes away, so reading is the one operation
+that may also write.
+
+Parsing around the tail is not enough. The file is opened in append mode, so
+the next record would be concatenated onto the orphaned bytes, and the combined
+line would fail to parse on every later read — turning the loss of one
+unacknowledged record into the permanent loss of the whole journal. Truncating
+discards only the partial record, which no caller was ever told had succeeded.
 
 ## Replay does not re-decide
 

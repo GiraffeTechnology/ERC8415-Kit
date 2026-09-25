@@ -335,3 +335,113 @@ test('a journal cancelling a gap that is not open fails to replay', () => {
     return true;
   });
 });
+
+/** A real journal that can be made to fail on demand, as a full disk would. */
+const breakable = (path: string) => {
+  const inner = new FileJournal(path);
+  let broken = false;
+  return {
+    break: () => { broken = true; },
+    journal: {
+      append: (record: Parameters<FileJournal['append']>[0]) => {
+        if (broken) throw new Error('disk full');
+        inner.append(record);
+      },
+      read: () => inner.read(),
+      bind: (identity: Parameters<FileJournal['bind']>[0]) => inner.bind(identity),
+      close: () => inner.close(),
+    },
+  };
+};
+
+test('an admission that cannot be journaled is undone rather than left in memory', () => {
+  const path = scratch();
+  const base = harness();
+  const { journal, break: breakIt } = breakable(path);
+  const h = {
+    ...base,
+    store: new ProjectionStore({
+      registerId: base.store.registerId,
+      verificationProfile: base.store.verificationProfile,
+      profiles: base.profiles,
+      adapter: base.adapter,
+      journal,
+    }),
+  };
+
+  admit(h, TOKEN, entry({ version: 1n, holder: ALICE, effectiveAt: 100n, recordCommitment: commitment(1) }));
+
+  const before = {
+    count: h.store.entryCount(TOKEN),
+    holder: h.store.holderAsOf(TOKEN, 100n),
+    supersededAt: h.store.entryAt(TOKEN, 1n).supersededAt,
+    height: base.adapter.acceptedHeight(TOKEN),
+    final: h.store.isFinalAsOf(TOKEN, 100n),
+  };
+
+  breakIt();
+  assert.throws(() => admit(h, TOKEN, entry({
+    version: 2n, holder: BOB, effectiveAt: 130n,
+    recordCommitment: commitment(2), previousCommitment: commitment(1),
+  })), /disk full/);
+
+  // The caller was told it failed, so nothing may be able to observe it having
+  // happened. Without the rollback the entry is readable here and disappears
+  // at the next restart.
+  assert.equal(h.store.entryCount(TOKEN), before.count, 'the phantom entry is still readable');
+  assert.equal(h.store.holderAsOf(TOKEN, 130n), before.holder);
+  assert.equal(h.store.entryAt(TOKEN, 1n).supersededAt, before.supersededAt, 'the prior interval was left closed');
+  assert.equal(base.adapter.acceptedHeight(TOKEN), before.height, 'the remote height was left advanced');
+  assert.equal(h.store.isFinalAsOf(TOKEN, 100n), before.final, 'a failed admission conferred finality');
+
+  // Memory now matches the disk, which is the point.
+  const restored = reopen(path, base);
+  assert.equal(restored.store.entryCount(TOKEN), before.count);
+  assert.equal(restored.store.holderAsOf(TOKEN, 100n), before.holder);
+
+  // The store still fails closed: a failed append may have written bytes
+  // before it threw, so what the journal holds is not knowable from here.
+  assert.equal(h.store.poisonedReason, 'disk full');
+});
+
+test('a gap whose open cannot be journaled is undone', () => {
+  const path = scratch();
+  const base = harness();
+  const { journal, break: breakIt } = breakable(path);
+  const store = new ProjectionStore({
+    registerId: base.store.registerId,
+    verificationProfile: base.store.verificationProfile,
+    profiles: base.profiles,
+    adapter: base.adapter,
+    journal,
+  });
+
+  breakIt();
+  assert.throws(() => store.openGap(TOKEN, gap({ settlementId: commitment(0x98) })), /disk full/);
+
+  // No gap is reported open, and the settlement record does not exist either.
+  assert.equal(store.openGapOf(TOKEN), ZERO_BYTES32);
+  assert.equal(store.settlement(commitment(0x98)).status, 'NONE');
+});
+
+test('a cancellation that cannot be journaled leaves the gap open', () => {
+  const path = scratch();
+  const base = harness();
+  const { journal, break: breakIt } = breakable(path);
+  const store = new ProjectionStore({
+    registerId: base.store.registerId,
+    verificationProfile: base.store.verificationProfile,
+    profiles: base.profiles,
+    adapter: base.adapter,
+    journal,
+  });
+
+  store.openGap(TOKEN, gap({ settlementId: commitment(0x99) }));
+  breakIt();
+  assert.throws(() => store.cancelGap(TOKEN), /disk full/);
+
+  // Cancellation settles nothing even when it succeeds; one that failed must
+  // not have closed the gap either.
+  assert.equal(store.openGapOf(TOKEN), commitment(0x99));
+  assert.equal(store.settlement(commitment(0x99)).status, 'OPEN');
+});

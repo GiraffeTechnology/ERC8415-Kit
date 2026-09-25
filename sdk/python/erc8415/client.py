@@ -98,7 +98,7 @@ DEFAULT_TIMEOUT_SECONDS = 10.0
 def _assert_safe_base_url(base_url: str) -> None:
     """Refuse a URL that would send credentials in clear, or carry them inline.
 
-    Ported from the transport checks in the closed codex/stage5-sdk branch.
+    Ported from the transport checks on the closed stage-5 branch.
     """
     parsed = urllib.parse.urlparse(base_url)
     if parsed.username or parsed.password:

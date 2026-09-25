@@ -108,6 +108,31 @@ export class TokenProjection {
   }
 
   /**
+   * Undo the most recent `admit`, including the `supersededAt` it wrote on the
+   * entry before it.
+   *
+   * This is not a revision path and must never be reachable from one. An entry
+   * that reached the durable journal is permanent; the only caller is the
+   * store, when the journal append failed and the entry therefore never became
+   * history at all. Un-applying it is what keeps a reader from seeing an entry
+   * the disk does not hold.
+   */
+  undoLastAdmit(): void {
+    const entry = this.#entries.pop();
+    if (entry === undefined) return;
+
+    this.#commitments.delete(entry.recordCommitment);
+    this.#byVersion.delete(entry.version.toString());
+
+    const previous = this.#entries.at(-1);
+    if (previous !== undefined) {
+      // It was the latest entry before this admit, so its supersededAt was
+      // zero: only a superseded entry carries a non-zero one.
+      this.#entries[this.#entries.length - 1] = { ...previous, supersededAt: 0n };
+    }
+  }
+
+  /**
    * The entry whose effective interval contains the instant.
    *
    * Reverts for an instant preceding the first entry: the projection does not

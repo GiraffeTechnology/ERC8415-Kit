@@ -203,18 +203,18 @@ evidence are not supplied; this is not a production-readiness certification.
 | Export is streamable and keeps uint64 exact | `auditExport.ts` `toNdjson` | the export is streamable and keeps uint64 as strings | delivered |
 | An export covers one tenant only | `auditExport.ts` | an export covers one tenant and stops there | delivered |
 
-## Salvaged from the closed codex stack
+## Salvaged from the closed stage branches
 
-Four things the closed `codex/*` stack got right and this implementation
+Four things the earlier closed stage branches got right and this implementation
 lacked. Each is ported with its scope corrected to the standard; the branches
 are preserved and the origin of each is named in the source.
 
 | Carried over | From | Implementation | Test |
 | --- | --- | --- | --- |
-| Ed25519 institutional attestation as a verification profile | `codex/stage2-verification` | `engine/proof/attestationProfile.ts` | `attestation.test.ts` (7 tests) |
-| Request bodies bounded before parsing | `codex/stage6-infrastructure` | `api/server.ts` `DEFAULT_BODY_LIMIT` | `api.test.ts` › an oversized body is refused before it is buffered |
-| Paged listing instead of a whole history | `codex/stage5-sdk` | `api/routes.ts` `parsePage` | `api.test.ts` › a history listing is paged rather than returned whole |
-| Transport safety: timeouts, no retries, no credential leak | `codex/stage5-sdk` | `sdk/js/client.ts`, `sdk/python/erc8415/client.py` | `sdk.test.ts` (3 tests) |
+| Ed25519 institutional attestation as a verification profile | closed stage-2 branch | `engine/proof/attestationProfile.ts` | `attestation.test.ts` (7 tests) |
+| Request bodies bounded before parsing | closed stage-6 branch | `api/server.ts` `DEFAULT_BODY_LIMIT` | `api.test.ts` › an oversized body is refused before it is buffered |
+| Paged listing instead of a whole history | closed stage-5 branch | `api/routes.ts` `parsePage` | `api.test.ts` › a history listing is paged rather than returned whole |
+| Transport safety: timeouts, no retries, no credential leak | closed stage-5 branch | `sdk/js/client.ts`, `sdk/python/erc8415/client.py` | `sdk.test.ts` (3 tests) |
 
 The attestation profile is rebound: that branch signed over a mutable asset
 snapshot, which cannot exist here. It signs the admission binding digest under
@@ -279,6 +279,9 @@ notes in `engine/persistence/README.md`.
 | Replay appends nothing | replay entry points | replay does not extend the journal it read | delivered |
 | A restored store keeps journaling | `restoreProjectionStore` | a restored store keeps journaling new mutations | delivered |
 | An unjournalable store fails closed | `#poisoned`, `STORE_NOT_WRITABLE` | a store that cannot journal refuses further writes instead of drifting | delivered |
+| A failed append undoes the admission it could not record | `#record` rollback, `TokenProjection.undoLastAdmit` | an admission that cannot be journaled is undone rather than left in memory | delivered |
+| A failed append undoes an opened gap | `#record` rollback | a gap whose open cannot be journaled is undone | delivered |
+| A failed append leaves a cancelled gap open | `#record` rollback | a cancellation that cannot be journaled leaves the gap open | delivered |
 | An append after a torn tail is not glued onto the fragment | `FileJournal.#open` truncates before the first write; `#write` loops `writeSync` | an append after a torn tail does not glue itself onto the fragment | delivered |
 | A journal is bound to its projection's identity | header record; `ProjectionStore` binds on construction | a journal is refused by a store for a different projection | delivered |
 | An unheadered journal is not replayed | `FileJournal.bind` | a journal with no identity header is not replayed | delivered |
@@ -294,6 +297,43 @@ entries were admitted under, so a reused path is refused instead of replayed.
 Not delivered by this stage: a database-backed store, concurrent-writer
 safety, and recovery evidence from a real restart under load. The journal is a
 single-process file.
+
+## Stage 4 — on-chain settlement
+
+A concrete `contracts/ProjectionSettlement.sol`, deployed as the register's
+sole writer, with proof verification behind `ISettlementProofVerifier`. Run
+with `npm run test:onchain`.
+
+| Requirement | Implementation | Test (`tests/onchain/settlement.onchain.cjs`) | Status |
+| --- | --- | --- | --- |
+| Settlement is the register's only writer | immutable `sourceAuthority` | deploys as the register's only writer | delivered |
+| Deployed code advertises `0xf4a7d71b` and not `0x6309e170` | `supportsInterface` | advertises the frozen settlement identifier from the deployed code | delivered |
+| Opening a gap records it without changing finality | `beginSettlement` | opens a gap and reports it as an open gap, not as a loss of finality | delivered |
+| Settlement authority is separate from ownership | `isSettlementAuthority` | refuses to open a gap for anyone but a settlement authority | delivered |
+| Deadline in the future and within the period | `beginSettlement` | refuses a deadline in the past or beyond the settlement period | delivered |
+| One open gap per token, one record per identifier | `_openGap`, `_settlements` | allows one open gap per token and one record per identifier | delivered |
+| Closing a gap admits through the register | `finalizeSettlement` | closes a gap by admitting the entry, and the register records it | delivered |
+| Any relayer may submit a bound proof | no caller check on finalize | closes a gap by admitting the entry, and the register records it | delivered |
+| Closing a gap confers no finality on what it admitted | `isFinalAsOf` unchanged by settlement | closing a gap does not make the instant it admitted final | delivered |
+| A proof is bound to one admission | `admissionBinding`, `AttestationProofVerifier` | refuses a proof bound to a different admission | delivered |
+| Expiry is not an outcome | `SettlementExpired` | refuses to close a gap that ran past its deadline | delivered |
+| Register invariants still apply through settlement | `RegisterProjection.admit` | still enforces the register's invariants through settlement | delivered |
+| Cancellation settles nothing | `cancelSettlement` | cancels only after the deadline, only by the initiator, and settles nothing | delivered |
+| A closed gap cannot be closed again | `GapStatus` | refuses to close a gap that is no longer open, and reopens cleanly | delivered |
+| The register's first entry requires a bound proof | `initializationBinding`, `initializeRegister` | requires a bound proof for the register's first entry | delivered |
+| A genesis proof cannot be replayed as an admission | version 1 vs 2+ in the binding | does not let a genesis proof be replayed as an admission | delivered |
+| Settlement cannot write a register it does not own | `NotSourceAuthority` | does not let settlement reach a register it is not the authority of | delivered |
+
+`GapStatus.SUPERSEDED` and `SettlementSuperseded` are declared by the frozen
+interface and never produced. A token holds at most one open gap, and replacing
+an open gap with another would be a third way to close one without either
+admitting or cancelling. The in-process engine has no such path either.
+
+Not delivered by this stage: a live network, and a succinct verifier. The
+shipped verifier admits on a named attestor's signature over the binding, which
+is the weakest profile that is still a real one. The chain is in-process, so
+gas economics, reorg behaviour and a real registrar's operations are
+unexercised.
 
 ## Shared conformance vectors
 
@@ -331,16 +371,40 @@ the failure mode these vectors close.
 
 ## Verification and outstanding acceptance
 
-`npm run verify`: typecheck, 166 passing in-process Node tests and 12 on-chain
-tests, including the Python SDK suite, authenticated loopback integration,
-Solidity compilation, shared conformance vectors and the deployed-contract run
-in "Stage 3 — on-chain delivery" above. This is local Node 24 validation; CI
-also targets Node 22.
+`npm run verify`: typecheck, 169 passing in-process Node tests and 28 passing
+on-chain tests, including the Python SDK suite, authenticated loopback
+integration, journal restart, crash recovery, identity binding and failed-append
+rollback, Solidity compilation, the deployed projection and settlement
+contracts, the deployed code reproducing the shared conformance vectors, and the
+coverage gate. This is local Node 24 validation; CI also targets Node 22.
 
 The full stage plan remains incomplete. The deployed contract transaction and
-event run is delivered, but against an in-process chain, so live-chain gas
-economics, reorg behaviour and a real registrar's operations remain
-unexercised. Missing evidence also includes an on-chain `IProjectionSettlement`
-implementation, measured coverage against the plan's 80% target, a deployed
-console session provider and production persistence/recovery. Docker was not
-exercised during these corrections.
+event run is delivered for both frozen interfaces, and the plan's 80% coverage
+target is measured and enforced — both are evidenced in their own sections
+below. What is still missing needs infrastructure the repository cannot supply
+on its own: a live network, so gas economics, reorg behaviour and a real
+registrar's operations remain unexercised; a succinct verifier behind the proof
+port; a deployed console session provider; a container run, which was not
+exercised during these corrections; and recovery evidence from a real restart
+under load.
+
+## Coverage
+
+The acceptance plan's 80% target, measured rather than asserted. `npm run
+coverage` runs the in-process suite under Node's own coverage and exits
+non-zero below 80% on lines, branches or functions. `npm run verify` runs it,
+and so does CI on both Node 22 and Node 24.
+
+| Metric | Threshold | Measured | Status |
+| --- | --- | --- | --- |
+| Lines | 80% | 96.90% | delivered |
+| Branches | 80% | 87.92% | delivered |
+| Functions | 80% | 95.42% | delivered |
+
+The measurement excludes `tests/**`, so the figures describe the source tree
+and not the suite measuring itself. The threshold was checked against a
+deliberately failing bound before being wired in, so the gate is known to fail
+rather than merely known to pass.
+
+Not covered by this gate: the Solidity tree, whose evidence is the on-chain
+suites above rather than a line-coverage figure.
