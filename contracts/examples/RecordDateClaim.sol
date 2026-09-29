@@ -29,6 +29,7 @@ contract RecordDateClaim {
     error GapOpen();
     error AlreadyClaimed();
     error PayoutFailed();
+    error IncorrectFunding();
 
     event Claimed(uint256 indexed tokenId, uint64 indexed recordDate, address indexed holder, uint256 amount);
 
@@ -48,6 +49,8 @@ contract RecordDateClaim {
         uint64 recordDate_,
         uint256 amount_
     ) payable {
+        if (msg.value != amount_) revert IncorrectFunding();
+
         projection = projection_;
         settlement = settlement_;
         tokenId = tokenId_;
