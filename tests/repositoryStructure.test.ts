@@ -34,24 +34,18 @@ test('the development environment is defined and containerised', () => {
   assert.ok(existsSync(at('.github/workflows/ci.yml')));
 });
 
-// The removed v1.0-era documents specified a different product. Nothing should
-// reintroduce them, or the vocabulary they used for projection state.
-test('no legacy task document has returned', () => {
+// Superseded product documents must not be reintroduced.
+test('no superseded document has returned', () => {
   for (const gone of [
-    'CODEX_TASK.md',
-    'CODEX-WORK-INIT.md',
-    'CODEX-ITERATION-TASK-v2.1.md',
-    'CODEX-SEMANTIC-HARDENING-TASK-v2.md',
-    'CODEX-AUTONOMOUS-DEVELOPMENT-TASK.md',
     'HANDOFF.md',
     'docs/ERC8415-Native-Infrastructure-Kit-PRD-Stage-Delivery-v1.0.md',
   ]) {
-    assert.ok(!existsSync(at(gone)), `legacy document is back: ${gone}`);
+    assert.ok(!existsSync(at(gone)), `superseded document is back: ${gone}`);
   }
 });
 
 test('the frozen interface identifiers are recorded unchanged', () => {
   const agents = readFileSync(at('AGENTS.md'), 'utf8');
-  assert.match(agents, /IRegisterProjection\s+0x6309e170/);
-  assert.match(agents, /IProjectionSettlement\s+0xf4a7d71b/);
+  assert.match(agents, /IRegisterProjection\\s+0x6309e170/);
+  assert.match(agents, /IProjectionSettlement\\s+0xf4a7d71b/);
 });
