@@ -9,7 +9,8 @@ const { ethers } = require("hardhat");
  *   - a gap opened earlier in the SAME block is seen by the claim (and the claim would
  *     otherwise have been eligible);
  *   - after a confirming entry is admitted strictly after the record date, the claim
- *     succeeds exactly once.
+ *     succeeds exactly once;
+ *   - a later change of hands does not move a record date that is already final.
  */
 describe("ERC-8415 consumer example: record-date claim", function () {
   const REGISTER_ID = ethers.id("register:land/v1");
@@ -19,6 +20,7 @@ describe("ERC-8415 consumer example: record-date claim", function () {
   const FIRST_AT = 1000n;
   const RECORD_DATE = 1500n;
   const CONFIRM_AT = 2000n;
+  const LATER_AT = 3000n;
   const AMOUNT = ethers.parseEther("1");
 
   const reference = (n) => ethers.id(`registry-reference-${n}`);
@@ -129,6 +131,32 @@ describe("ERC-8415 consumer example: record-date claim", function () {
     assert.equal(await ethers.provider.getBalance(await claim.getAddress()), before - AMOUNT);
 
     await assert.rejects(claim.connect(alice).claim(), /AlreadyClaimed/);
+  });
+
+  it("pays the holder of record after the token has since changed hands", async () => {
+    const claim = await deployClaim();
+
+    // A confirming entry for the same holder makes the record date final.
+    await openGap(gapId(1), alice.address);
+    await admit(gapId(1), 2, CONFIRM_AT);
+    assert.equal(await projection.isFinalAsOf(TOKEN, RECORD_DATE), true);
+
+    // The token then changes hands, effective after the record date.
+    await openGap(gapId(2), bob.address);
+    await admit(gapId(2), 3, LATER_AT);
+    assert.equal((await projection.currentEntry(TOKEN)).holder, bob.address);
+
+    // The historical answer is unmoved: a later entry supersedes the current
+    // holder, not the one the register confirmed at an earlier instant.
+    assert.equal(await projection.holderAsOf(TOKEN, RECORD_DATE), alice.address);
+    assert.equal(await projection.isFinalAsOf(TOKEN, RECORD_DATE), true);
+
+    // So the claim follows the record date, not whoever holds the token now.
+    await assert.rejects(claim.connect(bob).claim(), /NotHolder/);
+    const before = await ethers.provider.getBalance(await claim.getAddress());
+    await (await claim.connect(alice).claim()).wait();
+    assert.equal(await ethers.provider.getBalance(await claim.getAddress()), before - AMOUNT);
+    assert.equal(await claim.claimed(), true);
   });
 
   it("is not final when the admitted entry is effective exactly at the record date", async () => {
