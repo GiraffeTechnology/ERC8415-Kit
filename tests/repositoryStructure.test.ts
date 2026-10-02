@@ -46,6 +46,6 @@ test('no superseded document has returned', () => {
 
 test('the frozen interface identifiers are recorded unchanged', () => {
   const agents = readFileSync(at('AGENTS.md'), 'utf8');
-  assert.match(agents, /IRegisterProjection\\s+0x6309e170/);
-  assert.match(agents, /IProjectionSettlement\\s+0xf4a7d71b/);
+  assert.match(agents, /IRegisterProjection\s+0x6309e170/);
+  assert.match(agents, /IProjectionSettlement\s+0xf4a7d71b/);
 });
