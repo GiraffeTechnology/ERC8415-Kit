@@ -32,7 +32,7 @@ ERC-8415 Projection Contract
 
 The Kit implements ERC-8415 infrastructure. Applications decide user experience, settlement policy and downstream actions.
 
-## Current Implementation Status (2026-09-20)
+## Current Implementation Status (2026-09-29)
 
 The repository has progressed beyond a specification prototype and contains:
 
@@ -79,6 +79,9 @@ Implemented:
 - Solidity `ProjectionSettlement` reference implementation, holding the
   register's source authority and verifying a bound proof before every
   write, behind a pluggable `ISettlementProofVerifier`;
+- `contracts/examples/RecordDateClaim.sol`, a non-normative consumer example
+  showing the same-transaction integration shape. Nothing in the
+  specification depends on it;
 - conformance and on-chain test suites.
 
 ## ERC-8415 Semantic Boundary
@@ -108,6 +111,24 @@ there exists a later admitted entry
 ```
 
 Finality is derived from history. It is not an operator-controlled lifecycle state.
+
+"Later" means effective strictly after the instant. An entry effective exactly at the instant leaves it not final. A confirming entry naming the same holder satisfies the rule without any change of holder.
+
+### Consumer Integration
+
+A consumer MUST read the projection and act on it in the same transaction:
+
+```
+read      isFinalAsOf / holderAsOf
+act       in the SAME transaction
+never     on an earlier RPC or HTTP snapshot
+```
+
+A snapshot taken beforehand can be stale by the time it is acted on, and the projection cannot know it was consulted.
+
+Consumers are free to apply their own policies on top of the facts the Kit exposes — for example, declining to act while a settlement gap is open. Such a policy is the consumer's, not an ERC-8415 rule, and it does not change what the projection reports.
+
+`contracts/examples/RecordDateClaim.sol` demonstrates both points, and its on-chain tests pin them.
 
 ## Implementation vs Production Status
 
@@ -150,6 +171,11 @@ opens, closes and cancels gaps and is the register's only writer, but it
 imposes no settlement model: it confers no finality, cannot reject, cannot
 block a transfer, and treats an expired gap as undecided rather than as an
 outcome.
+
+An open gap does not make an already-final instant non-final. `isFinalAsOf()`
+answers exactly as it did before the gap was opened. A consumer that declines
+to act while a gap is open is applying its own policy, not reading a change in
+finality.
 
 ## Verification
 
