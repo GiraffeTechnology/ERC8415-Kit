@@ -1,0 +1,350 @@
+{
+  "_format": "hh-sol-cache-2",
+  "files": {
+    "/home/user/ERC8415-Kit/contracts/IERC165.sol": {
+      "lastModificationDate": 1789851013719,
+      "contentHash": "a0162fbf7e589a21427bd4062044e13f",
+      "sourceName": "contracts/IERC165.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "IERC165"
+      ]
+    },
+    "/home/user/ERC8415-Kit/contracts/RegisterProjection.sol": {
+      "lastModificationDate": 1789897746569,
+      "contentHash": "43f2c178d8198ab9433ecec8f6f2ac23",
+      "sourceName": "contracts/RegisterProjection.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./IERC165.sol",
+        "./IRegisterProjection.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "RegisterProjection"
+      ]
+    },
+    "/home/user/ERC8415-Kit/contracts/IRegisterProjection.sol": {
+      "lastModificationDate": 1789851013719,
+      "contentHash": "ed98b68d61341a1667ca9e7891bed544",
+      "sourceName": "contracts/IRegisterProjection.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./IERC165.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "IRegisterProjection"
+      ]
+    },
+    "/home/user/ERC8415-Kit/contracts/InterfaceIds.sol": {
+      "lastModificationDate": 1789851013719,
+      "contentHash": "c7490a711ac81436d7eff96568a1a162",
+      "sourceName": "contracts/InterfaceIds.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./IRegisterProjection.sol",
+        "./IProjectionSettlement.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "InterfaceIds"
+      ]
+    },
+    "/home/user/ERC8415-Kit/contracts/IProjectionSettlement.sol": {
+      "lastModificationDate": 1789851013719,
+      "contentHash": "c297be96f5adc88b8b09b09c36bf8905",
+      "sourceName": "contracts/IProjectionSettlement.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./IERC165.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "IProjectionSettlement"
+      ]
+    },
+    "/home/user/ERC8415-Kit/contracts/AttestationProofVerifier.sol": {
+      "lastModificationDate": 1789884169429,
+      "contentHash": "7b73014eb7f731ef6b5a2a6aadc3b186",
+      "sourceName": "contracts/AttestationProofVerifier.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./ISettlementProofVerifier.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "AttestationProofVerifier"
+      ]
+    },
+    "/home/user/ERC8415-Kit/contracts/ISettlementProofVerifier.sol": {
+      "lastModificationDate": 1789884087090,
+      "contentHash": "55d918ee2908e5611e98796e830685e7",
+      "sourceName": "contracts/ISettlementProofVerifier.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "ISettlementProofVerifier"
+      ]
+    },
+    "/home/user/ERC8415-Kit/contracts/ProjectionSettlement.sol": {
+      "lastModificationDate": 1789897452313,
+      "contentHash": "81a2bc0a7331cc7b3c1f6abfc082c54f",
+      "sourceName": "contracts/ProjectionSettlement.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "./IERC165.sol",
+        "./IRegisterProjection.sol",
+        "./IProjectionSettlement.sol",
+        "./ISettlementProofVerifier.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "IRegisterAdmission",
+        "ProjectionSettlement"
+      ]
+    },
+    "/home/user/ERC8415-Kit/contracts/examples/RecordDateClaim.sol": {
+      "lastModificationDate": 1790695826506,
+      "contentHash": "dd991e567b8c34b8818dbd297a1c7579",
+      "sourceName": "contracts/examples/RecordDateClaim.sol",
+      "solcConfig": {
+        "version": "0.8.28",
+        "settings": {
+          "optimizer": {
+            "enabled": true,
+            "runs": 200
+          },
+          "evmVersion": "paris",
+          "outputSelection": {
+            "*": {
+              "*": [
+                "abi",
+                "evm.bytecode",
+                "evm.deployedBytecode",
+                "evm.methodIdentifiers",
+                "metadata"
+              ],
+              "": [
+                "ast"
+              ]
+            }
+          }
+        }
+      },
+      "imports": [
+        "../IRegisterProjection.sol",
+        "../IProjectionSettlement.sol"
+      ],
+      "versionPragmas": [
+        "^0.8.20"
+      ],
+      "artifacts": [
+        "RecordDateClaim"
+      ]
+    }
+  }
+}

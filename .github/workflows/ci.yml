@@ -1,0 +1,37 @@
+name: Stage validation
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: [self-hosted, linux, abcdyi, erc8415-kit]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Isolated development environment
+        run: |
+          python3 -m venv .venv
+          .venv/bin/pip install -r requirements.lock
+          .venv/bin/pip install --no-deps -e . -e ./sdk/python
+      - name: Build and audit contracts
+        run: |
+          export PATH=/home/dev/.local/bin:$PATH
+          cd contracts
+          npm ci --ignore-scripts
+          npm audit
+          npm run build
+      - name: Lint and tests
+        run: |
+          .venv/bin/ruff check api engine adapters tests
+          .venv/bin/pytest --cov=sdk/python/erc8415
+      - name: JavaScript SDK tests
+        run: |
+          export PATH=/home/dev/.local/bin:$PATH
+          cd sdk/javascript
+          npm test
+      - name: Dependency audit
+        run: .venv/bin/pip-audit -r requirements.lock
