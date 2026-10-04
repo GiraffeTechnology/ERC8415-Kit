@@ -7,8 +7,8 @@ import { dirname, join, resolve } from 'node:path';
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const at = (...parts: string[]) => join(root, ...parts);
 
-// Stage 0 acceptance: the layout the stage plan names, and the documents an
-// implementing agent has to read before touching any of it, are present.
+// Stage 0 acceptance: the directory layout and required specification
+// documents named by the stage plan are present.
 test('the stage plan directory layout exists', () => {
   for (const dir of ['api', 'engine', 'adapters', 'contracts', 'console', 'sdk', 'tests', 'docker']) {
     assert.ok(existsSync(at(dir)), `missing directory: ${dir}`);

@@ -2,9 +2,9 @@
 
 ## Repository Execution Rule
 
-The implementing agent MUST work from the ERC-8415 standard text and this
-repository, and MUST NOT depend on chat context, external archives or a prior
-session's memory.
+Contributors MUST use the ERC-8415 standard text and this repository's current
+requirements as the implementation baseline. Undocumented assumptions and
+obsolete instructions MUST NOT guide implementation.
 
 Required reading order:
 
@@ -384,10 +384,10 @@ than leave it to be followed.
 
 ### Execution
 
-The implementing agent is authorised to create files, implement code, install
-dependencies, write tests, update documentation, run local environments and fix
-bugs. It MUST NOT bypass tests, remove security controls, delete approved
-architecture, or expand into unrelated products.
+Development work includes creating files, implementing code, installing
+dependencies, writing tests, updating documentation, running local environments
+and fixing bugs. Changes MUST NOT bypass tests, remove security controls, delete
+approved architecture, or expand into unrelated products.
 
 Interfaces alone are not delivery. Implement concrete projection modules that
 enforce append-only admission, consecutive versions, strictly increasing
