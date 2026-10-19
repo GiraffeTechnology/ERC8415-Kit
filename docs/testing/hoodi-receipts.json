@@ -1,0 +1,187 @@
+{
+  "network": "Hoodi",
+  "chainId": 560048,
+  "scope": "Receipt fields extracted from the delivered public same-block test evidence; entries deduplicated by transaction hash. This is not a count of test cases.",
+  "receipts": [
+    {
+      "transactionHash": "0x37bd49a34358f086462ca268bd94f8ebd049e1aa752f6cd75bb88af37a89c63b",
+      "blockNumber": 3847778,
+      "blockHash": "0x0b27a2d408a257a4c9458ca70d17151fdd2d2c280e90bca97800c7bc83d47cb0",
+      "transactionIndex": 22,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0x37bd49a34358f086462ca268bd94f8ebd049e1aa752f6cd75bb88af37a89c63b",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847778"
+    },
+    {
+      "transactionHash": "0x2c564fa6a1a5fce5346ab00fbb19ce9829e81874897d915f5a1035bf24eb12dd",
+      "blockNumber": 3847795,
+      "blockHash": "0x8c7793619fb7a8df95e14f62f2c2af3ed2ce61918183d85867900443996f8bfb",
+      "transactionIndex": 25,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0x2c564fa6a1a5fce5346ab00fbb19ce9829e81874897d915f5a1035bf24eb12dd",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847795"
+    },
+    {
+      "transactionHash": "0x3b80ea652a17b74ad08ec3e2af0e9cf35f9c6951ececa9f73e8a231e1ee7e05f",
+      "blockNumber": 3847798,
+      "blockHash": "0x6ebc4109fbb1ef27b168338c1e7d23227345b0f814c199192b99460a5f4e698b",
+      "transactionIndex": 21,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0x3b80ea652a17b74ad08ec3e2af0e9cf35f9c6951ececa9f73e8a231e1ee7e05f",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847798"
+    },
+    {
+      "transactionHash": "0xd0e146895a789b9c2284932aabd59072ecc0ad1def0baaf41a9394d83ea3ad6e",
+      "blockNumber": 3847801,
+      "blockHash": "0x72e5defe94b9629d188e92cfc54acc37e72351d8e15e3b001386b12b90bd9ca4",
+      "transactionIndex": 25,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0xd0e146895a789b9c2284932aabd59072ecc0ad1def0baaf41a9394d83ea3ad6e",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847801"
+    },
+    {
+      "transactionHash": "0xd769606db0b18c3138f52cd373c87ad0da4cb8bd18b406eed2223714c1ff4f6a",
+      "blockNumber": 3847804,
+      "blockHash": "0xff6bdaf54228554c16d9ff8eb8c28d6360f89da537435844d974572255a8c590",
+      "transactionIndex": 7,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0xd769606db0b18c3138f52cd373c87ad0da4cb8bd18b406eed2223714c1ff4f6a",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847804"
+    },
+    {
+      "transactionHash": "0x3e92215b4045983fdb74c54f53539fe011b22d6c181d32d715b38013c4320b64",
+      "blockNumber": 3847807,
+      "blockHash": "0xfcfd5cb7eef87ed92f6a130f44fdf967803c7bd2141ccdd735646c90ef21e147",
+      "transactionIndex": 5,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0x3e92215b4045983fdb74c54f53539fe011b22d6c181d32d715b38013c4320b64",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847807"
+    },
+    {
+      "transactionHash": "0xeccc3a5d0cca02f22a6f45b47ccdbb86e9ced66679607445abf0a09c3fb8b63e",
+      "blockNumber": 3847811,
+      "blockHash": "0x09207ce438acf5e891ba6e192d58f07c54fbaec4d6e8acb0c4131fd1e08ddc69",
+      "transactionIndex": 6,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0xeccc3a5d0cca02f22a6f45b47ccdbb86e9ced66679607445abf0a09c3fb8b63e",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847811"
+    },
+    {
+      "transactionHash": "0xffec2724f53872708605ea62d9e623b7cb1a6f487b7d4f209f1f747829e6219c",
+      "blockNumber": 3847831,
+      "blockHash": "0x4078da4b90cbb2cfd04e079e2105e3413dc1edbe52e94e0706c404b26deb07a5",
+      "transactionIndex": 20,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0xffec2724f53872708605ea62d9e623b7cb1a6f487b7d4f209f1f747829e6219c",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847831"
+    },
+    {
+      "transactionHash": "0x8121149ae78291d4408b792dd5ecb1b31d52e910ddea5e63c0c330cb4b306ba5",
+      "blockNumber": 3847831,
+      "blockHash": "0x4078da4b90cbb2cfd04e079e2105e3413dc1edbe52e94e0706c404b26deb07a5",
+      "transactionIndex": 21,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0x8121149ae78291d4408b792dd5ecb1b31d52e910ddea5e63c0c330cb4b306ba5",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847831"
+    },
+    {
+      "transactionHash": "0x7f4bbe0a8faebd81cb2ccc46a5be7e0b1b63c1e0eb5fa9c1c295181ebf9c020e",
+      "blockNumber": 3847839,
+      "blockHash": "0xb9a5bb879da20f8db91a385c9fde38ce2b6b3c529f19d370124b4ac4f1cfeee8",
+      "transactionIndex": 27,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0x7f4bbe0a8faebd81cb2ccc46a5be7e0b1b63c1e0eb5fa9c1c295181ebf9c020e",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847839"
+    },
+    {
+      "transactionHash": "0xad3b54fe6a2d1fef2aa2c39bc55d4f50bed7a58ea73c3132c31574c016bef14e",
+      "blockNumber": 3847842,
+      "blockHash": "0x1fd91fbfca0ddbf6f8f87821456329ed30799c2af724575e6c9daacf975759fe",
+      "transactionIndex": 24,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0xad3b54fe6a2d1fef2aa2c39bc55d4f50bed7a58ea73c3132c31574c016bef14e",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847842"
+    },
+    {
+      "transactionHash": "0x30a8d27f3fa1ef0e370272709dda4d4dac10b3e9631ac102d1f3f1080b9ba720",
+      "blockNumber": 3847845,
+      "blockHash": "0x68607446bd6f082970d877cedebfbde0de0bc1d1715a5b94f173a4a414246cc5",
+      "transactionIndex": 45,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0x30a8d27f3fa1ef0e370272709dda4d4dac10b3e9631ac102d1f3f1080b9ba720",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847845"
+    },
+    {
+      "transactionHash": "0x29263906dda5198f5e2d1a36c147c5fe243325a9d876f4b67b109f175bef66fe",
+      "blockNumber": 3847848,
+      "blockHash": "0xd7b3229c8faeea1917668ffac2f18cfbaceda6b8a468a6707e558c43f0fe4dd2",
+      "transactionIndex": 29,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0x29263906dda5198f5e2d1a36c147c5fe243325a9d876f4b67b109f175bef66fe",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847848"
+    },
+    {
+      "transactionHash": "0xc8977bb6651cee8dc3ac4b032c1a7a230242148ff9196e58b5702300509a01e0",
+      "blockNumber": 3847851,
+      "blockHash": "0x7303db616df89c8e85629b0fee34da4db51d57ac78444383827bd5412762002c",
+      "transactionIndex": 32,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0xc8977bb6651cee8dc3ac4b032c1a7a230242148ff9196e58b5702300509a01e0",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847851"
+    },
+    {
+      "transactionHash": "0xc5d688839fc8752ae70d6aeb36483cc129a4b22f01d682119be924930fffc767",
+      "blockNumber": 3847856,
+      "blockHash": "0x6bf0d4938e01b817cbf6a1d5e279d88830ed9028223453548af97bc47f9a8a1a",
+      "transactionIndex": 12,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0xc5d688839fc8752ae70d6aeb36483cc129a4b22f01d682119be924930fffc767",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847856"
+    },
+    {
+      "transactionHash": "0x68c681a7e957114c8c1aeab994aaf97fee50151848f0796106204954a0101d38",
+      "blockNumber": 3847860,
+      "blockHash": "0x1f77ec89e6ae948da83a22a2617062518bdc0edfcbc0ff8b5a973e333f882432",
+      "transactionIndex": 24,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0x68c681a7e957114c8c1aeab994aaf97fee50151848f0796106204954a0101d38",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847860"
+    },
+    {
+      "transactionHash": "0x0c352d7b42dbcef9cc747d01a07485e017e3472a2d53fb0d86861ddcc84e8ee9",
+      "blockNumber": 3847880,
+      "blockHash": "0x7ac87f8fea49539e5777fddb2347c2edc6313cb40dbdb80cdb3aa849a28d2539",
+      "transactionIndex": 15,
+      "receiptStatus": 1,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0x0c352d7b42dbcef9cc747d01a07485e017e3472a2d53fb0d86861ddcc84e8ee9",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847880"
+    },
+    {
+      "transactionHash": "0x1a723d70edd8f9b440c9f724bc9296ca141e43dbc57311468bdf3ad756a96b82",
+      "blockNumber": 3847880,
+      "blockHash": "0x7ac87f8fea49539e5777fddb2347c2edc6313cb40dbdb80cdb3aa849a28d2539",
+      "transactionIndex": 16,
+      "receiptStatus": 0,
+      "chainId": 560048,
+      "transactionUrl": "https://hoodi.etherscan.io/tx/0x1a723d70edd8f9b440c9f724bc9296ca141e43dbc57311468bdf3ad756a96b82",
+      "blockUrl": "https://hoodi.etherscan.io/block/3847880"
+    }
+  ]
+}
