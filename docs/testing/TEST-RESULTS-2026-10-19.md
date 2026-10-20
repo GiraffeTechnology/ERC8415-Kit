@@ -1,12 +1,14 @@
 # ERC-8415 implementation and wallet test results
 
-Snapshot: 2026-10-19 UTC. Public evidence summary for ERC-8415 ecosystem integration.
+Updated: 2026-10-20 UTC. Reported evidence cutoff: **2026-10-19 19:37:56 UTC**. Public evidence summary for ERC-8415 ecosystem integration. This is an update of recorded results, not a new test execution.
+
+**Overall status: INCOMPLETE.**
 
 ## Results at a glance
 
 - Public Hoodi same-block A/B tests established both execution orders: release before later admission preserves the entry actually used; admission before the release attempt is observed by the release and its conditions are enforced.
 - The completed semantic test scope passed, including historical entry boundaries, same-holder confirmation, provisional/final separation and preservation of the original release commitment.
-- The wallet's 60-case application/integration ledger stands at **50 PASS / 10 open**, according to the latest progress update. The archived case ledger contains 49 PASS; R05 is the separately reported latest pass. The same-block A/B work is additional and is not added to the 60-case denominator.
+- The wallet's 60-case application/integration ledger records **56 PASS / 4 INCOMPLETE**. These are the test operator's recorded results within the scopes below, not independent full-product acceptance. The same-block A/B work is additional and is not added to the 60-case denominator.
 - The updated same-block wallet-reader regression suite passed **56 tests**, including 9 new ordering tests. This is candidate-reader validation, not an assertion that every installed wallet interface has been upgraded.
 - Earlier Sepolia release/refund work and the Kit's own version-pinned local/CI results are retained below as separate campaigns.
 
@@ -63,9 +65,9 @@ Additional successful wallet application paths include:
 
 Returns, payments, occurrences and completed prefixes are application composition. They do not add rollback or rejection of admitted history to ERC-8415 itself.
 
-## 3. Complete 60-case wallet ledger
+## 3. Wallet ledger: 56 recorded passes and 4 incomplete
 
-PASS below means the documented test's execution scope passed. Contract negative checks performed with `eth_call` are not described as mined transactions. Deliberate client disconnects and synthetic reorg/receipt overlays are fault-injection tests, not claims of an observed public-network outage or reorg. A native-contract result is not automatically an installed UI/API result.
+PASS below means the test operator recorded a pass in the documented execution scope. The 56 cases are not 56 real transactions: they include artifacts, actual chain reads, native contract/CLI consumers, deployed-contract negative calls and controlled fault injection. Contract negative checks performed with `eth_call` are not described as mined transactions. Deliberate client disconnects and synthetic reorg/receipt overlays are fault-injection tests, not claims of an observed public-network outage or reorg. A native-contract result is not automatically an installed UI/API result.
 
 | ID | Test | Current result |
 | --- | --- | --- |
@@ -90,7 +92,7 @@ PASS below means the documented test's execution scope passed. Contract negative
 | A05 | Admit C and complete BC | PASS |
 | A06 | Catch up after missing the B refresh | PASS |
 | A07 | Same-holder confirming admission | PASS |
-| A08 | Distinguish delay, stale registration, RPC failure and revert | OPEN |
+| A08 | Distinguish delay, stale registration, RPC failure and revert | PASS |
 | P01 | Forward chain without payment adapter | PASS |
 | P02 | Independent principal reservations per leg | PASS |
 | P03 | Settle completed AB while BC remains pending | PASS |
@@ -101,7 +103,7 @@ PASS below means the documented test's execution scope passed. Contract negative
 | R02 | Return C to B to A in separate hops | PASS |
 | R03 | Refund both unfinished legs to their original payers | PASS |
 | R04 | Stop a return at the completed AB boundary | PASS |
-| R05 | Reject unauthorized or incorrectly bound return requests | PASS (latest reported update) |
+| R05 | Reject unauthorized or incorrectly bound return requests | PASS |
 | R06 | Check before, at and after the deadline | PASS |
 | R07 | Reject forward/completion during active callback | PASS |
 | R08 | Late admission preserves a closed return sequence | PASS |
@@ -109,28 +111,37 @@ PASS below means the documented test's execution scope passed. Contract negative
 | D02 | Reject reuse of detached legs | PASS |
 | D03 | Resume after a completed hop without replay | PASS |
 | D04 | Open a new sequence while retaining old history | PASS |
-| D05 | Repeated A in A to B to C to A: occurrence isolation | IN PROGRESS |
+| D05 | Repeated A in A to B to C to A: occurrence isolation | PASS |
 | D06 | Reject stale revision operations | PASS |
 | H01 | Read the complete admitted entry chain | PASS |
 | H02 | Effective-time boundaries and before-first-entry behavior | PASS |
 | H03 | Separate historical ownership and registration | PASS |
-| H04 | Retrieve original credentials by trade, sequence and leg | OPEN |
+| H04 | Retrieve original credentials by trade, sequence and leg | PASS |
 | H05 | Query detached, returned and closed history | PASS |
 | H06 | Keep historical holder and temporal finality separate | PASS |
 | H07 | Repeat pinned historical reads after client restart | PASS |
-| H08 | Pagination and invalid or missing history sources | OPEN |
+| H08 | Pagination and invalid or missing history sources | PASS |
 | N01 | Disconnect before submission | PASS |
 | N02 | Recover after a lost submission response | PASS |
 | N03 | Recover after execution but before receipt persistence | PASS |
-| N04 | RPC timeout, wrong chain, source switch and late responses | OPEN |
+| N04 | RPC timeout, wrong chain, source switch and late responses | PASS |
 | N05 | Receipt availability, confirmation depth and reorg handling | PASS |
-| N06 | Session expiry or revocation during in-flight work | OPEN |
-| X01 | Default network and explicit test-network selection | OPEN |
-| X02 | Same-address cross-chain isolation | OPEN |
-| X03 | Continuous authorized operations and revocation boundaries | OPEN |
-| X04 | Consumer classification of pending, stale, unavailable and revert | OPEN |
+| X01 | Default network and explicit test-network selection | PASS |
 
-R05's latest PASS and D05's three successful forward transfers come from the latest progress update; D05's occurrence-0/occurrence-3 binding and completion verification remains in progress. Other open cases concern application consumption, history retrieval, sessions, RPC behavior, network isolation and authorization. They are not counted as failed ERC-8415 protocol tests.
+**Remaining cases: 4 INCOMPLETE. Overall acceptance: INCOMPLETE.**
+
+### Scope of the recorded passes
+
+- S01 records role/address and chain-read anchors, not proof that every address could sign at that earlier checkpoint. S02 is a synthetic receipt artifact, not chain execution. S03-S06 combine actual mint/readback and fixture/accounting evidence with simulated registrar facts.
+- F01-F08 concern the native reference-escrow path and its receipt/history audit. F02 used zero principal. F07 reconstructs direct release fields from the event and obtains token, terms and canonical time from linked records. F08 uses deliberately mismatched audit inputs against real records.
+- A01-A07, P01-P06, R01-R08 and D01-D06 concern native application-contract paths. Registrar facts are simulated; the documented admissions, transfers, completions, returns and small test-principal movements are actual Hoodi execution. Negative contract checks use deployed-contract `eth_call`, not mined negative transactions. R06 checks real historical blocks around the agreed deadline. Client-persistence interruptions in P04 and D03 are controlled fault injection.
+- A08 combines actual native asset reads with controlled elapsed-time and transport-fault simulations. The expected mined release revert is separate evidence, not a network outage or an actual elapsed-deadline observation.
+- D05 records the actual A-to-B-to-C-to-A sequence with distinct occurrences and legs. The initial A occurrence cannot stand in for the later A occurrence; a later admitted entry bound to the correct occurrence completes the three legs.
+- H01-H06 use actual native history reads and receipt-linked reconstruction. H04 distinguishes the corrected release-reader candidate from the separate completion/refund readers. H07 repeats pinned reads in a fresh client process, not a service-restart test. H08 covers native history and contiguous public-log pages; an unsupported opaque cursor is explicitly rejected, not evidence of implemented cursor-expiry semantics.
+- N01-N04 combine actual chain observations with deliberately interrupted clients or injected transport faults. N05 combines a real canonical receipt and confirmation-depth checks with synthetic missing-receipt, reorg and error overlays. These do not claim a public-network outage or an observed real reorg.
+- X01 covers bounded native CLI chain-selection preflight, a separate actual asset read and preserved network bindings. It does not establish successful execution of an entire all-views CLI run.
+
+These pass scopes do not establish installed browser UI, hosted authenticated API or full-product acceptance. This update does not extend historical results to later code revisions. Incomplete cases are reported only in aggregate.
 
 ## 4. Historical Sepolia release/refund campaign
 
@@ -141,7 +152,7 @@ Network: Sepolia, chain ID **11155111**. Campaign date: **2026-09-19**.
 - Recorded historical scan interval: [block 11739199](https://sepolia.etherscan.io/block/11739199) through [block 11739229](https://sepolia.etherscan.io/block/11739229).
 - Fourteen transactions exercised release and refund paths with test-only value. Token `841501` was released against entry 2 while `isFinalAsOf(1789840680)` was false; the prior instant `1789833540` was final and retained the earlier holder even though current ownership had moved.
 - Historical reads, custom-error decoding, interface discovery and trade-key derivation were checked. Provider log-range errors and transport/revert misclassification were identified and corrected; the subsequent historical scan returned the expected events.
-- That run's permissionless third-party release, dead-endpoint classification case and signer wrong-chain case were not exercised. It is historical evidence for that implementation, not a rerun of the current wallet.
+- Three additional cases remain INCOMPLETE in that historical campaign. It is historical evidence for that implementation, not a rerun of the current wallet.
 
 These Sepolia details are transcribed from the historical execution report. The block links identify its recorded range; this publication does not invent fourteen missing per-transaction hashes or claim a fresh independent archive-RPC replay.
 
