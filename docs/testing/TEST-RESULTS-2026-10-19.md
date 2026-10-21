@@ -1,13 +1,17 @@
 # ERC-8415 implementation and wallet test results
 
-Updated: 2026-10-20 UTC. Reported evidence cutoff: **2026-10-19 19:37:56 UTC**. Public evidence summary for ERC-8415 ecosystem integration. This is an update of recorded results, not a new test execution.
+Updated: 2026-10-21 UTC. Reported evidence cutoff: **2026-10-19 19:37:56 UTC**. Public evidence summary for ERC-8415 ecosystem integration.
 
-**Overall status: INCOMPLETE.**
+**Scope-specific conclusions**
+
+- **Documented mechanism scenarios: recorded PASS within their stated scopes.** The release/history, same-block ordering and other listed native scenarios retain their recorded results. This is not a declaration that all ERC-8415 requirements or all core technical acceptance criteria have passed.
+- **Wallet application acceptance: INCOMPLETE for this evidence snapshot.** The original 60-case ledger remains 56 PASS / 4 INCOMPLETE. Applicable mandatory or conditionally mandatory product requirements remain unclosed; the four cases are not optional enhancements that can be removed to claim completion.
+- **Kit baseline: separate version-pinned evidence.** Its local/CI suite results below are neither the wallet campaign's denominator nor full wallet-product acceptance.
 
 ## Results at a glance
 
 - Public Hoodi same-block A/B tests established both execution orders: release before later admission preserves the entry actually used; admission before the release attempt is observed by the release and its conditions are enforced.
-- The completed semantic test scope passed, including historical entry boundaries, same-holder confirmation, provisional/final separation and preservation of the original release commitment.
+- The documented semantic scenarios have recorded passes for historical entry boundaries, same-holder confirmation, provisional/final separation and preservation of the original release commitment. These bounded results do not certify every protocol requirement or the complete product.
 - The wallet's 60-case application/integration ledger records **56 PASS / 4 INCOMPLETE**. These are the test operator's recorded results within the scopes below, not independent full-product acceptance. The same-block A/B work is additional and is not added to the 60-case denominator.
 - The updated same-block wallet-reader regression suite passed **56 tests**, including 9 new ordering tests. This is candidate-reader validation, not an assertion that every installed wallet interface has been upgraded.
 - Earlier Sepolia release/refund work and the Kit's own version-pinned local/CI results are retained below as separate campaigns.
@@ -128,7 +132,15 @@ PASS below means the test operator recorded a pass in the documented execution s
 | N05 | Receipt availability, confirmation depth and reorg handling | PASS |
 | X01 | Default network and explicit test-network selection | PASS |
 
-**Remaining cases: 4 INCOMPLETE. Overall acceptance: INCOMPLETE.**
+**Remaining cases: 4 INCOMPLETE. Wallet application acceptance: INCOMPLETE for this evidence snapshot.**
+
+### Applicability assessment
+
+The original 60-case campaign mixes bounded native mechanism scenarios with broader application-integration requirements; it is not an exhaustive acceptance matrix for the wallet or ERC-8415. The outstanding aggregate contains applicable mandatory or conditionally mandatory product requirements, not dispensable optional enhancements. A requirement applies to the capability and execution path it governs; it must not become a prerequisite for unrelated, independently executable scenarios.
+
+Accordingly, the outstanding application coverage does not invalidate the recorded passes for the specific mechanism scenarios evidenced here. Conversely, those passes do not close the outstanding application requirements or establish complete multichain, authenticated-agent, consumer-interface or production acceptance. No case is deleted, reclassified as optional or promoted to PASS by this assessment. The denominator remains 60, not 56. Original case identities, prior results and the receipt index are preserved; incomplete-case details remain outside this public summary.
+
+This is a reporting-scope assessment only. No new tests were executed and the evidence cutoff is unchanged.
 
 ### Scope of the recorded passes
 
